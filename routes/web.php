@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Catch-all route for SPA (except API routes)
+Route::get('/{any}', function () {
+    return view(view: 'spa');
+})->where('any', '^(?!api).*$');
