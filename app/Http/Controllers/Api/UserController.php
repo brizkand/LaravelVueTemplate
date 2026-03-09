@@ -9,11 +9,6 @@ use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
-    public function index(){
-        $users = User::orderBy("id","desc")->paginate(10);
-        return response()->json($users);
-    }
-
     public function show(Request $request){
         $user = $request->user();
 

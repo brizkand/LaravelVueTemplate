@@ -1,60 +1,32 @@
 import {createRouter, createWebHistory} from 'vue-router'
 
-import Home from '../pages/Home.vue'
-import About from '../pages/About.vue'
-// import Login from '../pages/Login.vue'
-
-// import MainLayout from '@/layouts/MainLayout.vue'
-import Dashboard from '@/views/Dashboard.vue'
-import Dashboard2 from '@/views/Dashboard2.vue'
-
-import AppLayout from '@/layouts/AppLayout.vue'
-import AuthLayout from '@/layouts/AuthLayout.vue'
-import Login from '@/views/pages/auth/Login.vue'
-import Register from '@/views/pages/auth/Register.vue'
-
 const routes = [
-	// {path: '/', name: 'home', component: Home},
-	// {path: '/about', name: 'about', component: About},
-	// {path: '/login', name: 'login', component: Login},
-
-	// {
-	// 	path: '/',
-	// 	component: MainLayout,
-	// 	children: [
-	// 		{
-	// 			path: '',
-	// 			component: Dashboard,
-	// 		},
-	// 	],
-	// },
-
 	{
 		path: '/',
-		component: AppLayout,
+		component: () => import('@/layouts/AppLayout.vue'),
 		meta: {auth: true},
 		children: [
 			{
 				path: '',
 				name: 'dashboard',
-				component: Dashboard2,
+				component: () => import('@/views/Dashboard.vue'),
 			},
 		],
 	},
 	{
 		// Auth routes
 		path: '/auth',
-		component: AuthLayout,
+		component: () => import('@/layouts/AuthLayout.vue'),
 		children: [
 			{
 				path: 'login',
 				name: 'auth.login',
-				component: Login,
+				component: () => import('@/views/pages/auth/Login.vue'),
 			},
 			{
 				path: 'register',
 				name: 'auth.register',
-				component: Register,
+				component: () => import('@/views/pages/auth/Register.vue'),
 			},
 		],
 	},
