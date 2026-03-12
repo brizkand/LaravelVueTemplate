@@ -19,9 +19,8 @@ class AuthUserResource extends JsonResource
             "name"=> $this->name,
             "email"=> $this->email,
             "avatar_name_initials"=>
-                collect(explode(' ', $this->name))->map(function($part) {
-                    return strtoupper(substr($part, 0, 1));
-                })->join(''),
+                strtoupper(substr($this->profile->first_name ?? '', 0, 1) .
+                substr($this->profile->last_name ?? '', 0, 1)),
         ];
     }
 }
