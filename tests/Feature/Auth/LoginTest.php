@@ -1,58 +1,56 @@
 <?php
 
-use App\Models\User;
+use App\Models\System\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 
 uses(RefreshDatabase::class);
 
-test('user can login with valid credentials', function () {
-    $user = User::factory()->create([
-        'email' => 'test@example.com',
-        'password' => Hash::make('password123'),
-    ]);
+test('user can login with valid hrmis credentials', function () {
 
     $response = $this->postJson('/api/auth/login', [
-        'email' => 'test@example.com',
-        'password' => 'password123',
+        'username' => 'holgadok',
+        'password' => 'password',
     ]);
 
     $response->assertOk()
-    ->assertJsonStructure([
-        'access_token',
-        'token_type',
-        'user',
-    ])
-    ->assertJson([
-        'user' => [
-            'email' => 'test@example.com',
-        ],
+        ->assertJsonStructure([
+            'access_token',
+            'token_type',
+        ]);
+
+    $this->assertDatabaseHas('users', [
+        'employee_number' => 22013,
+        'username' => 'holgadok',
     ]);
 
     $this->assertDatabaseHas('personal_access_tokens', [
-        'tokenable_id' => $user->id,
+        'tokenable_type' => User::class,
     ]);
 
 });
 
 test('login fails with wrong credentials', function () {
 
-    $user = User::factory()->create([
-        'password' => Hash::make('password123'),
-    ]);
-
     $response = $this->postJson('/api/auth/login', [
-        'email' => $user->email,
-        'password' => 'wrong',
+        'username' => 'holgadok',
+        'password' => 'wrongpassword',
     ]);
 
-    $response->assertStatus(401);
+    $response->assertStatus(401)
+        ->assertJsonStructure([
+            'errors' => [
+                'username'
+            ]
+        ]);
+
 });
 
-test('login requires email and password', function () {
+test('login requires username and password', function () {
 
     $response = $this->postJson('/api/auth/login', []);
 
     $response->assertStatus(422)
-    ->assertJsonValidationErrors(['email', 'password']);
+        ->assertJsonValidationErrors(['username', 'password']);
+
 });
