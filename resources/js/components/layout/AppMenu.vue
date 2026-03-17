@@ -14,6 +14,31 @@
 			],
 		},
 		{
+			label: 'Forms',
+			items: [
+				{
+					label: 'Form List',
+					icon: 'pi pi-fw pi-list',
+					to: '/forms',
+				},
+				{
+					label: 'Form Builder',
+					icon: 'pi pi-fw pi-hammer',
+					to: '/forms/create',
+				},
+				// {
+				// 	label: 'Form Responses',
+				// 	icon: 'pi pi-fw pi-file-edit',
+				// 	to: '/forms/responses',
+				// },
+				// {
+				// 	label: 'Form Analytics',
+				// 	icon: 'pi pi-fw pi-chart-bar',
+				// 	to: '/forms/analytics',
+				// },
+			],
+		},
+		{
 			label: 'Admin',
 			items: [
 				{
