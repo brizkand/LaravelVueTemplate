@@ -29,7 +29,7 @@ class Profile extends Model
     }
 
     public function getNameAttribute () : string {
-        return "$this->first_name $this->last_name";
+        return trim("{$this->first_name} {$this->last_name}");
     }
 
     public function getReversenameAttribute () : string {

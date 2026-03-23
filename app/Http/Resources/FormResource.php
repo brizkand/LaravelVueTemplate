@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Http\Resources\FormFieldResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,15 +20,40 @@ class FormResource extends JsonResource
             'description' => $this->description,
             'is_active' => $this->is_active,
             'is_public' => $this->is_public,
-            'published_at' => $this->published_at,
             'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+
             'created_by' => [
                 'id' => $this->creator?->id,
-                'name' => $this->creator?->name,
+                'name' => $this->creator?->profile?->name ?? $this->creator?->email ?? 'Unknown User',
             ],
+
             'fields_count' => $this->whenCounted('fields'),
             'responses_count' => $this->whenCounted('responses'),
-            'fields' => FormFieldResource::collection($this->whenLoaded('fields')),
+
+            'fields' => $this->whenLoaded('fields', function () {
+                return $this->fields->map(function ($field) {
+                    return [
+                        'id' => $field->id,
+                        'type' => $field->type,
+                        'label' => $field->label,
+                        'description' => $field->description,
+                        'is_required' => $field->is_required,
+                        'placeholder' => $field->placeholder,
+                        'sort_order' => $field->sort_order,
+                        'is_active' => $field->is_active,
+                        'validation_rules' => $field->validation_rules,
+                        'options' => $field->options->map(function ($option) {
+                            return [
+                                'id' => $option->id,
+                                'label' => $option->label,
+                                'value' => $option->value,
+                                'sort_order' => $option->sort_order,
+                            ];
+                        })->values(),
+                    ];
+                })->values();
+            }),
         ];
     }
 }
