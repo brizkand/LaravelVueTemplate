@@ -10,57 +10,70 @@
 	const toast = useToast()
 	const formStore = useFormStore()
 
-	const form = ref(formStore.createEmptyForm())
+	const form = ref({
+		id: null,
+		title: '',
+		description: '',
+		is_active: true,
+		is_public: true,
+		fields: [],
+	})
 
 	const formId = computed(() => route.params.id || null)
 	const isEditMode = computed(() => Boolean(formId.value))
 
-	onMounted(() => {
-		formStore.loadForms()
-
+	onMounted(async () => {
 		if (isEditMode.value) {
-			const existingForm = formStore.getFormById(formId.value)
-
-			if (!existingForm) {
+			try {
+				const existingForm = await formStore.fetchForm(formId.value)
+				form.value = JSON.parse(JSON.stringify(existingForm))
+			} catch (error) {
 				toast.add({
 					severity: 'error',
 					summary: 'Form Not Found',
-					detail: 'The requested form could not be found.',
+					detail: 'Unable to load the selected form.',
 					life: 3000,
 				})
-
 				router.push({name: 'forms.list'})
-				return
 			}
-
-			form.value = JSON.parse(JSON.stringify(existingForm))
-		} else {
-			form.value = formStore.createEmptyForm()
 		}
 	})
 
-	const saveForm = (payload) => {
-		if (isEditMode.value) {
-			formStore.updateForm(formId.value, payload)
+	const saveForm = async (payload) => {
+		try {
+			await formStore.saveForm(payload, isEditMode.value ? formId.value : null)
 
 			toast.add({
 				severity: 'success',
-				summary: 'Form Updated',
-				detail: 'The form has been updated successfully.',
+				summary: isEditMode.value ? 'Form Updated' : 'Form Created',
+				detail: isEditMode.value ? 'The form has been updated successfully.' : 'The form has been created successfully.',
 				life: 3000,
 			})
-		} else {
-			formStore.addForm(payload)
+
+			router.push({name: 'forms.list'})
+		} catch (error) {
+			const response = error?.response?.data
+
+			let detail = 'Failed to save form.'
+
+			if (response?.message) {
+				detail = response.message
+			}
+
+			if (response?.errors) {
+				const firstError = Object.values(response.errors)[0]
+				if (Array.isArray(firstError) && firstError.length) {
+					detail = firstError[0]
+				}
+			}
 
 			toast.add({
-				severity: 'success',
-				summary: 'Form Created',
-				detail: 'The form has been created successfully.',
-				life: 3000,
+				severity: 'error',
+				summary: 'Save Failed',
+				detail,
+				life: 4000,
 			})
 		}
-
-		router.push({name: 'forms.list'})
 	}
 
 	const previewSubmit = () => {
@@ -80,23 +93,6 @@
 <template>
 	<div class="form-builder-page">
 		<!-- <Toast /> -->
-		<!-- <h1>Form</h1>
-		<pre
-			>{{ form }}
-        </pre
-		>
-		<Divider />
-		<h1>Form Id</h1>
-		<pre
-			>{{ formId }}
-        </pre
-		>
-		<Divider />
-		<h1>Is Edit Mode</h1>
-		<pre
-			>{{ isEditMode }}
-        </pre
-		> -->
 
 		<div class="page-header">
 			<div>

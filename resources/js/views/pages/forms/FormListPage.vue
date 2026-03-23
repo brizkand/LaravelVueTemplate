@@ -20,11 +20,26 @@
 		{label: 'Inactive', value: 'inactive'},
 	]
 
-	onMounted(() => {
-		formStore.loadForms()
+	onMounted(async () => {
+		try {
+			await formStore.fetchForms()
+		} catch (error) {
+			const message = error?.response?.data?.message || 'Failed to load forms.'
+
+			toast.add({
+				severity: 'error',
+				summary: 'Load Failed',
+				detail: message,
+				life: 4000,
+			})
+
+			if (error?.response?.status === 401) {
+				router.push({name: 'auth.login'})
+			}
+		}
 	})
 
-	const forms = computed(() => formStore.allForms)
+	const forms = computed(() => formStore.forms)
 
 	const filteredForms = computed(() => {
 		const keyword = globalFilter.value.trim().toLowerCase()
@@ -111,6 +126,33 @@
 		})
 	}
 
+	// const deleteForm = (form) => {
+	// 	confirm.require({
+	// 		message: `Are you sure you want to delete "${form.title}"?`,
+	// 		header: 'Delete Form',
+	// 		icon: 'pi pi-exclamation-triangle',
+	// 		rejectProps: {
+	// 			label: 'Cancel',
+	// 			severity: 'secondary',
+	// 			outlined: true,
+	// 		},
+	// 		acceptProps: {
+	// 			label: 'Delete',
+	// 			severity: 'danger',
+	// 		},
+	// 		accept: () => {
+	// 			formStore.deleteForm(form.id)
+
+	// 			toast.add({
+	// 				severity: 'success',
+	// 				summary: 'Form Deleted',
+	// 				detail: `"${form.title}" was deleted successfully.`,
+	// 				life: 3000,
+	// 			})
+	// 		},
+	// 	})
+	// }
+
 	const deleteForm = (form) => {
 		confirm.require({
 			message: `Are you sure you want to delete "${form.title}"?`,
@@ -125,15 +167,24 @@
 				label: 'Delete',
 				severity: 'danger',
 			},
-			accept: () => {
-				formStore.deleteForm(form.id)
+			accept: async () => {
+				try {
+					await formStore.removeForm(form.id)
 
-				toast.add({
-					severity: 'success',
-					summary: 'Form Deleted',
-					detail: `"${form.title}" was deleted successfully.`,
-					life: 3000,
-				})
+					toast.add({
+						severity: 'success',
+						summary: 'Form Deleted',
+						detail: `"${form.title}" was deleted successfully.`,
+						life: 3000,
+					})
+				} catch {
+					toast.add({
+						severity: 'error',
+						summary: 'Delete Failed',
+						detail: 'Unable to delete form.',
+						life: 3000,
+					})
+				}
 			},
 		})
 	}
