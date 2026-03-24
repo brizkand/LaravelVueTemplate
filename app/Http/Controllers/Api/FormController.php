@@ -55,6 +55,8 @@ class FormController extends Controller
                     'sort_order' => $fieldData['sort_order'],
                     'validation_rules' => $fieldData['validation_rules'] ?? null,
                     'is_active' => (bool) $fieldData['is_active'],
+                    'allow_other_option' => (bool) ($fieldData['allow_other_option'] ?? false),
+                    'other_option_label' => $fieldData['other_option_label'] ?? null,
                 ]);
 
                 foreach ($fieldData['options'] ?? [] as $optionData) {
@@ -103,6 +105,8 @@ class FormController extends Controller
                     'sort_order' => $fieldData['sort_order'],
                     'validation_rules' => $fieldData['validation_rules'] ?? null,
                     'is_active' => (bool) $fieldData['is_active'],
+                    'allow_other_option' => (bool) ($fieldData['allow_other_option'] ?? false),
+                    'other_option_label' => $fieldData['other_option_label'] ?? null,
                 ]);
 
                 foreach ($fieldData['options'] ?? [] as $optionData) {

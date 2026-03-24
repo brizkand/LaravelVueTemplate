@@ -52,6 +52,8 @@ class StoreFormRequest extends FormRequest
             'fields.*.sort_order' => ['required', 'integer', 'min:1'],
             'fields.*.is_active' => ['required', 'boolean'],
             'fields.*.validation_rules' => ['nullable', 'array'],
+            'fields.*.allow_other_option' => ['nullable', 'boolean'],
+            'fields.*.other_option_label' => ['nullable', 'string', 'max:255'],
 
             'fields.*.options' => ['nullable', 'array'],
             'fields.*.options.*.label' => ['required_with:fields.*.options', 'string', 'max:255'],

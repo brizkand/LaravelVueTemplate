@@ -43,6 +43,8 @@ class FormResource extends JsonResource
                         'sort_order' => $field->sort_order,
                         'is_active' => $field->is_active,
                         'validation_rules' => $field->validation_rules,
+                        'allow_other_option' => $field->allow_other_option,
+                        'other_option_label' => $field->other_option_label,
                         'options' => $field->options->map(function ($option) {
                             return [
                                 'id' => $option->id,

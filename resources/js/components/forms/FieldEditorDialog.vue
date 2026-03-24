@@ -1,5 +1,6 @@
 <script setup>
 	import {computed, ref, watch} from 'vue'
+	import draggable from 'vuedraggable'
 
 	const props = defineProps({
 		visible: {
@@ -48,49 +49,71 @@
 			allowed_types: [],
 		},
 		options: [],
+		allow_other_option: false,
+		other_option_label: 'Other',
 	})
 
 	const localForm = ref(createDefaultForm())
 	const formError = ref('')
 	const allowedTypesText = ref('')
 
+	const resetForm = () => {
+		localForm.value = createDefaultForm()
+		allowedTypesText.value = ''
+		formError.value = ''
+	}
+
+	const fillForm = (value) => {
+		if (value) {
+			localForm.value = {
+				id: value.id ?? null,
+				type: value.type ?? 'short_text',
+				label: value.label ?? '',
+				description: value.description ?? '',
+				is_required: Boolean(value.is_required),
+				placeholder: value.placeholder ?? '',
+				is_active: value.is_active !== false,
+				sort_order: value.sort_order ?? 1,
+				validation_rules: {
+					min: value.validation_rules?.min ?? null,
+					max: value.validation_rules?.max ?? null,
+					max_size_kb: value.validation_rules?.max_size_kb ?? null,
+					allowed_types: Array.isArray(value.validation_rules?.allowed_types) ? value.validation_rules.allowed_types : [],
+				},
+				options: Array.isArray(value.options)
+					? value.options.map((option, index) => ({
+							id: option.id ?? null,
+							label: option.label ?? '',
+							value: option.value ?? '',
+							sort_order: option.sort_order ?? index + 1,
+						}))
+					: [],
+				allow_other_option: Boolean(value.allow_other_option),
+				other_option_label: value.other_option_label ?? 'Other',
+			}
+		} else {
+			resetForm()
+		}
+
+		allowedTypesText.value = (localForm.value.validation_rules.allowed_types || []).join(', ')
+		formError.value = ''
+	}
+
 	watch(
 		() => props.field,
 		(value) => {
-			if (value) {
-				localForm.value = {
-					id: value.id ?? null,
-					type: value.type ?? 'short_text',
-					label: value.label ?? '',
-					description: value.description ?? '',
-					is_required: Boolean(value.is_required),
-					placeholder: value.placeholder ?? '',
-					is_active: value.is_active !== false,
-					sort_order: value.sort_order ?? 1,
-					validation_rules: {
-						min: value.validation_rules?.min ?? null,
-						max: value.validation_rules?.max ?? null,
-						max_size_kb: value.validation_rules?.max_size_kb ?? null,
-						allowed_types: Array.isArray(value.validation_rules?.allowed_types) ? value.validation_rules.allowed_types : [],
-					},
-					options: Array.isArray(value.options)
-						? value.options.map((option, index) => ({
-								id: option.id ?? null,
-								label: option.label ?? '',
-								value: option.value ?? '',
-								sort_order: option.sort_order ?? index + 1,
-							}))
-						: [],
-				}
-			} else {
-				localForm.value = createDefaultForm()
-			}
-
-			allowedTypesText.value = (localForm.value.validation_rules.allowed_types || []).join(', ')
-
-			formError.value = ''
+			fillForm(value)
 		},
 		{immediate: true, deep: true},
+	)
+
+	watch(
+		() => props.visible,
+		(value) => {
+			if (value && !props.field) {
+				resetForm()
+			}
+		},
 	)
 
 	const dialogTitle = computed(() => (localForm.value.id ? 'Edit Question' : 'Add Question'))
@@ -102,6 +125,8 @@
 	const supportsMinMax = computed(() => ['number', 'rating'].includes(localForm.value.type))
 
 	const supportsFileRules = computed(() => localForm.value.type === 'file')
+
+	const supportsOtherOption = computed(() => ['radio', 'checkbox'].includes(localForm.value.type))
 
 	const addOption = () => {
 		localForm.value.options.push({
@@ -122,6 +147,10 @@
 			...option,
 			sort_order: index + 1,
 		}))
+	}
+
+	const onOptionDragEnd = () => {
+		reindexOptions()
 	}
 
 	const autoFillOptionValue = (index) => {
@@ -206,6 +235,13 @@
 			}
 		}
 
+		if (supportsOtherOption.value && localForm.value.allow_other_option) {
+			if (!localForm.value.other_option_label.trim()) {
+				formError.value = 'Other option label is required.'
+				return false
+			}
+		}
+
 		return true
 	}
 
@@ -230,13 +266,24 @@
 						sort_order: index + 1,
 					}))
 				: [],
+			allow_other_option: supportsOtherOption.value ? localForm.value.allow_other_option : false,
+			other_option_label: supportsOtherOption.value ? localForm.value.other_option_label.trim() || 'Other' : null,
 		}
 	}
 
 	const saveField = () => {
 		if (!validateForm()) return
 
+		const isEditMode = Boolean(localForm.value.id)
+
 		emit('save', buildPayload())
+
+		if (isEditMode) {
+			dialogVisible.value = false
+			return
+		}
+
+		resetForm()
 		dialogVisible.value = false
 	}
 
@@ -246,7 +293,7 @@
 </script>
 
 <template>
-	<Dialog v-model:visible="dialogVisible" modal closable :dismissableMask="true" :style="{width: '900px', maxWidth: '95vw'}" :header="dialogTitle">
+	<Dialog v-model:visible="dialogVisible" modal closable :dismissableMask="true" :style="{width: '950px', maxWidth: '95vw'}" :header="dialogTitle">
 		<div class="editor-dialog-body">
 			<div class="editor-grid">
 				<div class="field-block">
@@ -298,7 +345,7 @@
 				<div class="section-header">
 					<div>
 						<h3>Options</h3>
-						<p>Add choices for this question.</p>
+						<p>Drag to reorder your options.</p>
 					</div>
 
 					<Button type="button" label="Add Option" icon="pi pi-plus" severity="secondary" outlined @click="addOption" />
@@ -306,16 +353,37 @@
 
 				<div v-if="!localForm.options.length" class="options-empty">No options yet.</div>
 
-				<div v-for="(option, index) in localForm.options" :key="option.id ?? index" class="option-row">
-					<div class="option-index">
-						{{ index + 1 }}
+				<draggable v-else v-model="localForm.options" item-key="sort_order" handle=".option-drag-handle" animation="200" class="options-list" @end="onOptionDragEnd">
+					<template #item="{element, index}">
+						<div class="option-row">
+							<div class="option-drag-handle" title="Drag to reorder">
+								<i class="pi pi-bars" />
+							</div>
+
+							<div class="option-index">
+								{{ index + 1 }}
+							</div>
+
+							<InputText v-model="element.label" class="w-full" placeholder="Option label" @blur="autoFillOptionValue(index)" />
+
+							<InputText v-model="element.value" class="w-full" placeholder="Option value" />
+
+							<Button type="button" icon="pi pi-trash" text rounded severity="danger" @click="removeOption(index)" />
+						</div>
+					</template>
+				</draggable>
+
+				<div v-if="supportsOtherOption" class="setting-item">
+					<div>
+						<div class="setting-title">Allow “Other” option</div>
+						<div class="setting-text">Respondents can type their own answer.</div>
 					</div>
+					<ToggleSwitch v-model="localForm.allow_other_option" />
+				</div>
 
-					<InputText v-model="option.label" class="w-full" placeholder="Option label" @blur="autoFillOptionValue(index)" />
-
-					<InputText v-model="option.value" class="w-full" placeholder="Option value" />
-
-					<Button type="button" icon="pi pi-trash" text rounded severity="danger" @click="removeOption(index)" />
+				<div v-if="supportsOtherOption && localForm.allow_other_option" class="field-block">
+					<label class="editor-label">Other Option Label</label>
+					<InputText v-model="localForm.other_option_label" class="w-full" placeholder="Other" />
 				</div>
 			</div>
 
@@ -460,11 +528,29 @@
 		color: var(--text-color-secondary);
 	}
 
+	.options-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
 	.option-row {
 		display: grid;
-		grid-template-columns: 52px 1fr 1fr auto;
+		grid-template-columns: 44px 52px 1fr 1fr auto;
 		gap: 0.75rem;
 		align-items: center;
+	}
+
+	.option-drag-handle {
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 12px;
+		background: var(--surface-100);
+		color: var(--text-color-secondary);
+		cursor: grab;
 	}
 
 	.option-index {
@@ -529,7 +615,8 @@
 			grid-template-columns: 1fr;
 		}
 
-		.option-index {
+		.option-index,
+		.option-drag-handle {
 			width: 100%;
 		}
 	}
