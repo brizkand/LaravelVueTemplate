@@ -20,6 +20,9 @@
 		{label: 'Inactive', value: 'inactive'},
 	]
 
+	const deleteConfirmVisible = ref(false)
+	const deleting = ref(false)
+
 	onMounted(async () => {
 		try {
 			await formStore.fetchForms()
@@ -101,60 +104,63 @@
 		})
 	}
 
-	const duplicateForm = (form) => {
-		formStore.duplicateForm(form.id)
+	const duplicateForm = async (form) => {
+		try {
+			await formStore.duplicateForm(form.id)
 
-		toast.add({
-			severity: 'success',
-			summary: 'Form Duplicated',
-			detail: `"${form.title}" was duplicated successfully.`,
-			life: 3000,
-		})
+			toast.add({
+				severity: 'success',
+				summary: 'Form Duplicated',
+				detail: `"${form.title}" was duplicated successfully.`,
+				life: 3000,
+			})
+		} catch {
+			toast.add({
+				severity: 'error',
+				summary: 'Duplicate Failed',
+				detail: 'Unable to duplicate form.',
+				life: 3000,
+			})
+		}
 	}
 
-	const toggleStatus = (form) => {
-		formStore.updateForm(form.id, {
-			...form,
-			is_active: !form.is_active,
-		})
+	const toggleStatus = async (formItem) => {
+		try {
+			const fullForm = await formStore.fetchForm(formItem.id)
 
-		toast.add({
-			severity: 'success',
-			summary: 'Status Updated',
-			detail: `"${form.title}" is now ${!form.is_active ? 'Active' : 'Inactive'}.`,
-			life: 3000,
-		})
+			await formStore.updateForm(formItem.id, {
+				title: fullForm.title,
+				description: fullForm.description,
+				is_active: !fullForm.is_active,
+				is_public: fullForm.is_public,
+				fields: fullForm.fields || [],
+			})
+
+			toast.add({
+				severity: 'success',
+				summary: 'Status Updated',
+				detail: `"${formItem.title}" status updated successfully.`,
+				life: 3000,
+			})
+
+			await formStore.fetchForms()
+		} catch {
+			toast.add({
+				severity: 'error',
+				summary: 'Update Failed',
+				detail: 'Unable to update form status.',
+				life: 3000,
+			})
+		}
 	}
 
-	// const deleteForm = (form) => {
-	// 	confirm.require({
-	// 		message: `Are you sure you want to delete "${form.title}"?`,
-	// 		header: 'Delete Form',
-	// 		icon: 'pi pi-exclamation-triangle',
-	// 		rejectProps: {
-	// 			label: 'Cancel',
-	// 			severity: 'secondary',
-	// 			outlined: true,
-	// 		},
-	// 		acceptProps: {
-	// 			label: 'Delete',
-	// 			severity: 'danger',
-	// 		},
-	// 		accept: () => {
-	// 			formStore.deleteForm(form.id)
+	const deleteForm = (event, form) => {
+		if (deleteConfirmVisible.value || deleting.value) return
 
-	// 			toast.add({
-	// 				severity: 'success',
-	// 				summary: 'Form Deleted',
-	// 				detail: `"${form.title}" was deleted successfully.`,
-	// 				life: 3000,
-	// 			})
-	// 		},
-	// 	})
-	// }
+		deleteConfirmVisible.value = true
 
-	const deleteForm = (form) => {
 		confirm.require({
+			group: 'delete-form',
 			message: `Are you sure you want to delete "${form.title}"?`,
 			header: 'Delete Form',
 			icon: 'pi pi-exclamation-triangle',
@@ -168,6 +174,10 @@
 				severity: 'danger',
 			},
 			accept: async () => {
+				if (deleting.value) return
+
+				deleting.value = true
+
 				try {
 					await formStore.removeForm(form.id)
 
@@ -184,7 +194,16 @@
 						detail: 'Unable to delete form.',
 						life: 3000,
 					})
+				} finally {
+					deleting.value = false
+					deleteConfirmVisible.value = false
 				}
+			},
+			reject: () => {
+				deleteConfirmVisible.value = false
+			},
+			onHide: () => {
+				deleteConfirmVisible.value = false
 			},
 		})
 	}
@@ -193,7 +212,7 @@
 <template>
 	<div class="form-list-page">
 		<Toast />
-		<ConfirmDialog />
+		<ConfirmDialog group="delete-form" />
 
 		<div class="page-header">
 			<div>
@@ -324,7 +343,7 @@
 							<Button icon="pi pi-table" text rounded severity="help" v-tooltip.top="'Responses'" @click="goToResponses(data)" />
 							<Button icon="pi pi-copy" text rounded severity="secondary" v-tooltip.top="'Duplicate'" @click="duplicateForm(data)" />
 							<Button :icon="data.is_active ? 'pi pi-eye-slash' : 'pi pi-eye'" text rounded severity="warn" v-tooltip.top="data.is_active ? 'Deactivate' : 'Activate'" @click="toggleStatus(data)" />
-							<Button icon="pi pi-trash" text rounded severity="danger" v-tooltip.top="'Delete'" @click="deleteForm(data)" />
+							<Button icon="pi pi-trash" text rounded severity="danger" v-tooltip.top="'Delete'" @click.stop="deleteForm($event, data)" />
 						</div>
 					</template>
 				</Column>
