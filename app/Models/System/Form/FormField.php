@@ -18,11 +18,14 @@ class FormField extends Model
         'sort_order',
         'validation_rules',
         'is_active',
+        'allow_other_option',
+        'other_option_label',
     ];
 
     protected $casts = [
         'is_required' => 'boolean',
         'is_active' => 'boolean',
+        'allow_other_option' => 'boolean',
         'validation_rules' => 'array',
     ];
 
