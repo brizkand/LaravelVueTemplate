@@ -11,13 +11,17 @@
 			type: Boolean,
 			default: false,
 		},
+		submitting: {
+			type: Boolean,
+			default: false,
+		},
 	})
 
 	const emit = defineEmits(['submit'])
 
 	const answers = reactive({})
 	const errors = reactive({})
-	const submitting = reactive({
+	const submittingState = reactive({
 		loading: false,
 	})
 
@@ -48,7 +52,11 @@
 
 		if (field.is_required) {
 			if (field.type === 'checkbox') {
-				if (!Array.isArray(value) || value.length === 0) {
+				if (Array.isArray(value)) {
+					if (value.length === 0) return 'This question is required.'
+				} else if (value?.selected && Array.isArray(value.selected)) {
+					if (value.selected.length === 0) return 'This question is required.'
+				} else {
 					return 'This question is required.'
 				}
 			} else if (field.type === 'rating') {
@@ -74,12 +82,12 @@
 		let isValid = true
 
 		activeFields.value.forEach((field) => {
-			if (!field) return
-
 			const error = validateField(field, answers[field.id])
 			errors[field.id] = error
 
-			if (error) isValid = false
+			if (error) {
+				isValid = false
+			}
 		})
 
 		return isValid
@@ -91,11 +99,12 @@
 		const valid = validateForm()
 		if (!valid) return
 
-		submitting.loading = true
+		submittingState.loading = true
 
 		try {
 			const payload = {
-				form_id: props.form.id,
+				respondent_name: null,
+				respondent_email: null,
 				answers: activeFields.value.map((field) => ({
 					field_id: field.id,
 					value: answers[field.id],
@@ -104,7 +113,7 @@
 
 			emit('submit', payload)
 		} finally {
-			submitting.loading = false
+			submittingState.loading = false
 		}
 	}
 </script>
@@ -130,7 +139,7 @@
 		<div v-if="!activeFields.length" class="form-card empty-card">
 			<i class="pi pi-inbox text-3xl" />
 			<h3>No questions yet</h3>
-			<p>Add questions in the builder to preview this form.</p>
+			<p>No active questions available in this form.</p>
 		</div>
 
 		<div v-for="field in activeFields" :key="field.id" class="form-card question-card">
@@ -138,7 +147,7 @@
 		</div>
 
 		<div v-if="activeFields.length" class="form-actions">
-			<Button label="Submit" icon="pi pi-send" :loading="submitting.loading" :disabled="previewMode" class="submit-btn" @click="submitForm" />
+			<Button label="Submit" icon="pi pi-send" :loading="submitting || submittingState.loading" :disabled="previewMode" class="submit-btn" @click="submitForm" />
 		</div>
 
 		<Message v-if="previewMode" severity="info" class="mt-3"> Preview mode is enabled. Submission is disabled. </Message>

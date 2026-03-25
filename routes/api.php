@@ -26,3 +26,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 });
 
+Route::get('/forms/{form}/respond', [FormSubmissionController::class, 'show']);
+Route::post('/forms/{form}/submit', [FormSubmissionController::class, 'store']);
+

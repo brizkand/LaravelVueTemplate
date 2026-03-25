@@ -11,16 +11,6 @@ const routes = [
 				name: 'dashboard',
 				component: () => import('@/views/Dashboard.vue'),
 			},
-			// {
-			// 	path: 'forms',
-			// 	children: [
-			// 		{
-			// 			path: 'builder',
-			// 			name: 'forms.builder',
-			// 			component: () => import('@/views/pages/forms/FormBuilderPage.vue'),
-			// 		},
-			// 	],
-			// },
 			{
 				path: 'forms',
 				children: [
@@ -40,24 +30,29 @@ const routes = [
 						component: () => import('@/views/pages/forms/FormBuilderPage.vue'),
 						props: true,
 					},
-					// {
-					// 	path: ':id/analytics',
-					// 	name: 'forms.analytics',
-					// 	component: () => import('@/views/pages/forms/FormAnalyticsPage.vue'),
-					// 	props: true,
-					// },
-					// {
-					// 	path: ':id/responses',
-					// 	name: 'forms.responses',
-					// 	component: () => import('@/views/pages/forms/FormResponsesPage.vue'),
-					// 	props: true,
-					// },
 				],
 			},
 		],
 	},
+
+	// public/private response page
 	{
-		// Auth routes
+		path: '/forms/:id/respond',
+		name: 'forms.respond',
+		component: () => import('@/views/pages/forms/PublicFormPage.vue'),
+		props: true,
+		meta: {
+			publicForm: true,
+		},
+	},
+	{
+		path: '/forms/:id/thank-you',
+		name: 'forms.thank-you',
+		component: () => import('@/views/pages/forms/FormThankYouPage.vue'),
+		props: true,
+	},
+
+	{
 		path: '/auth',
 		component: () => import('@/layouts/AuthLayout.vue'),
 		meta: {guest: true},
@@ -69,6 +64,7 @@ const routes = [
 			},
 		],
 	},
+
 	{
 		path: '/:pathMatch(.*)*',
 		name: 'not-found',
@@ -88,16 +84,26 @@ const router = createRouter({
 	},
 })
 
-// ROUTER GUARDS
 router.beforeEach((to) => {
 	const tokenName = import.meta.env.VITE_APP_AUTH_TOKEN_NAME
 	const userToken = localStorage.getItem(tokenName)
 
 	if (to.meta.auth && !userToken) {
-		return {name: 'auth.login'}
+		return {
+			name: 'auth.login',
+			query: {
+				redirect: to.fullPath,
+			},
+		}
 	}
 
 	if (to.meta.guest && userToken) {
+		const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : null
+
+		if (redirect) {
+			return redirect
+		}
+
 		return {name: 'dashboard'}
 	}
 
