@@ -1,7 +1,7 @@
-import api from '@/api/axios'
+import api from '@/api'
 
 export const getForms = (params = {}) => {
-	return api.get('/api/forms', {params})
+	return api.get('/api/forms', params)
 }
 
 export const getForm = (id) => {

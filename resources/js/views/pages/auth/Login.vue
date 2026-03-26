@@ -24,11 +24,11 @@
 
 <script setup>
 	import {ref, computed} from 'vue'
-	import {useRouter, useRoute} from 'vue-router'
+	import {useRouter} from 'vue-router'
 	import {useAuthStore} from '@/stores/auth'
+	import {getAuthRedirect, clearAuthRedirect} from '@/utils/authRedirect'
 
 	const router = useRouter()
-	const route = useRoute()
 	const authStore = useAuthStore()
 
 	const loading = ref(false)
@@ -43,13 +43,7 @@
 	const hasPasswordError = computed(() => !!formError.value?.password)
 
 	const getRedirectPath = () => {
-		const redirect = route.query.redirect
-
-		if (typeof redirect === 'string' && redirect.trim()) {
-			return redirect
-		}
-
-		return '/'
+		return getAuthRedirect() || '/'
 	}
 
 	const attemptLogin = async () => {
@@ -62,14 +56,14 @@
 			const response = await authStore.ATTEMPT_LOGIN(form.value)
 
 			authStore.AUTHENTICATE_TOKEN(response?.access_token)
-
 			await authStore.GET_USER_DATA()
 
 			const redirectTo = getRedirectPath()
+			clearAuthRedirect()
 
 			await router.replace(redirectTo)
 		} catch (error) {
-			formError.value = error?.errors || error?.response?.data?.errors || {}
+			formError.value = error?.errors || {}
 		} finally {
 			loading.value = false
 		}

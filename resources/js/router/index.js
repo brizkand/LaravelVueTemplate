@@ -1,4 +1,5 @@
 import {createRouter, createWebHistory} from 'vue-router'
+import {getAuthRedirect, clearAuthRedirect} from '@/utils/authRedirect'
 
 const routes = [
 	{
@@ -34,16 +35,11 @@ const routes = [
 			},
 		],
 	},
-
-	// public/private response page
 	{
 		path: '/forms/:id/respond',
 		name: 'forms.respond',
 		component: () => import('@/views/pages/forms/PublicFormPage.vue'),
 		props: true,
-		meta: {
-			publicForm: true,
-		},
 	},
 	{
 		path: '/forms/:id/thank-you',
@@ -51,7 +47,6 @@ const routes = [
 		component: () => import('@/views/pages/forms/FormThankYouPage.vue'),
 		props: true,
 	},
-
 	{
 		path: '/auth',
 		component: () => import('@/layouts/AuthLayout.vue'),
@@ -64,7 +59,6 @@ const routes = [
 			},
 		],
 	},
-
 	{
 		path: '/:pathMatch(.*)*',
 		name: 'not-found',
@@ -91,19 +85,18 @@ router.beforeEach((to) => {
 	if (to.meta.auth && !userToken) {
 		return {
 			name: 'auth.login',
-			query: {
-				redirect: to.fullPath,
-			},
 		}
 	}
 
 	if (to.meta.guest && userToken) {
-		const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : null
+		const redirectTarget = getAuthRedirect()
 
-		if (redirect) {
-			return redirect
+		if (redirectTarget && redirectTarget !== '/') {
+			clearAuthRedirect()
+			return redirectTarget
 		}
 
+		clearAuthRedirect()
 		return {name: 'dashboard'}
 	}
 
