@@ -4,6 +4,7 @@
 	import {useToast} from 'primevue/usetoast'
 	import {useFormResponseStore} from '@/stores/formResponse'
 	import DynamicFormRenderer from '@/components/forms/DynamicFormRenderer.vue'
+	import {forceAuthRedirect} from '@/utils/authRedirect'
 
 	const route = useRoute()
 	const router = useRouter()
@@ -16,11 +17,12 @@
 	const submitting = computed(() => formResponseStore.submitting)
 
 	const goLoginWithRedirect = () => {
-		router.push({
+		const targetPath = `/forms/${formId.value}/respond`
+
+		forceAuthRedirect(targetPath)
+
+		router.replace({
 			name: 'auth.login',
-			query: {
-				redirect: route.fullPath,
-			},
 		})
 	}
 
@@ -28,8 +30,8 @@
 		try {
 			await formResponseStore.fetchForm(formId.value)
 		} catch (error) {
-			const status = error?.response?.status
-			const detail = error?.response?.data?.message || 'Unable to load this form.'
+			const status = error?.status
+			const detail = error?.message || 'Unable to load this form.'
 
 			toast.add({
 				severity: 'error',
@@ -76,15 +78,11 @@
 				},
 			})
 		} catch (error) {
-			const status = error?.response?.status
-			let detail = 'Failed to submit form.'
+			const status = error?.status
+			let detail = error?.message || 'Failed to submit form.'
 
-			if (error?.response?.data?.message) {
-				detail = error.response.data.message
-			}
-
-			if (error?.response?.data?.errors) {
-				const firstError = Object.values(error.response.data.errors)[0]
+			if (error?.errors) {
+				const firstError = Object.values(error.errors)[0]
 				if (Array.isArray(firstError) && firstError.length) {
 					detail = firstError[0]
 				}

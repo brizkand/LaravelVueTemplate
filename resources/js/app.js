@@ -2,6 +2,7 @@ import './bootstrap'
 // Import Vue
 import {createApp} from 'vue'
 import {createPinia} from 'pinia'
+import {useAuthStore} from '@/stores/auth'
 import App from './App.vue'
 import router from './router'
 
@@ -294,4 +295,9 @@ app.component('ScrollTop', ScrollTop)
 app.component('Skeleton', Skeleton)
 app.component('Tag', Tag)
 
-app.use(pinia).use(router).mount('#app')
+app.use(pinia)
+
+const authStore = useAuthStore()
+authStore.RESTORE_AUTH()
+
+app.use(router).mount('#app')

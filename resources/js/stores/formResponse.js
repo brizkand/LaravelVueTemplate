@@ -11,9 +11,9 @@ export const useFormResponseStore = defineStore('formResponse', () => {
 		loading.value = true
 
 		try {
-			const {data} = await getPublicForm(id)
-			form.value = data.data
-			return data.data
+			const data = await getPublicForm(id)
+			form.value = data.data ?? null
+			return data.data ?? null
 		} finally {
 			loading.value = false
 		}
@@ -23,7 +23,7 @@ export const useFormResponseStore = defineStore('formResponse', () => {
 		submitting.value = true
 
 		try {
-			const {data} = await submitFormResponse(id, payload)
+			const data = await submitFormResponse(id, payload)
 			return data
 		} finally {
 			submitting.value = false

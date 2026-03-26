@@ -17,8 +17,8 @@ export const useFormStore = defineStore('form', () => {
 		loading.value = true
 
 		try {
-			const {data} = await formApi.getForms(params)
-			forms.value = data.data
+			const data = await formApi.getForms(params)
+			forms.value = data.data ?? []
 			meta.value = data.meta ?? null
 			return data
 		} finally {
@@ -30,9 +30,9 @@ export const useFormStore = defineStore('form', () => {
 		loading.value = true
 
 		try {
-			const {data} = await formApi.getForm(id)
-			form.value = data.data
-			return data.data
+			const data = await formApi.getForm(id)
+			form.value = data.data ?? null
+			return data.data ?? null
 		} finally {
 			loading.value = false
 		}
@@ -42,11 +42,14 @@ export const useFormStore = defineStore('form', () => {
 		saving.value = true
 
 		try {
-			const response = id ? await formApi.updateForm(id, payload) : await formApi.createForm(payload)
+			const data = id ? await formApi.updateForm(id, payload) : await formApi.createForm(payload)
 
-			const savedForm = response.data.data
+			const savedForm = data.data ?? null
 
-			// keep list in sync if already loaded
+			if (!savedForm) {
+				return null
+			}
+
 			if (id) {
 				const index = forms.value.findIndex((item) => Number(item.id) === Number(id))
 				if (index > -1) {
@@ -73,6 +76,7 @@ export const useFormStore = defineStore('form', () => {
 
 	const removeForm = async (id) => {
 		await formApi.deleteForm(id)
+
 		forms.value = forms.value.filter((item) => Number(item.id) !== Number(id))
 
 		if (form.value && Number(form.value.id) === Number(id)) {
@@ -81,8 +85,9 @@ export const useFormStore = defineStore('form', () => {
 	}
 
 	const duplicateForm = async (id) => {
-		// Load the full original form first so fields/options are included
 		const original = await fetchForm(id)
+
+		if (!original) return null
 
 		const duplicatePayload = cloneDeep({
 			title: `${original.title} (Copy)`,
@@ -103,6 +108,8 @@ export const useFormStore = defineStore('form', () => {
 					max_size_kb: null,
 					allowed_types: [],
 				},
+				allow_other_option: field.allow_other_option ?? false,
+				other_option_label: field.other_option_label ?? 'Other',
 				options: (field.options || []).map((option, optionIndex) => ({
 					label: option.label,
 					value: option.value,
@@ -111,9 +118,7 @@ export const useFormStore = defineStore('form', () => {
 			})),
 		})
 
-		const duplicated = await saveForm(duplicatePayload)
-
-		return duplicated
+		return await saveForm(duplicatePayload)
 	}
 
 	const clearForm = () => {
