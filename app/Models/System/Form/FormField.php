@@ -17,6 +17,7 @@ class FormField extends Model
         'placeholder',
         'sort_order',
         'validation_rules',
+        'field_settings',
         'is_active',
         'allow_other_option',
         'other_option_label',
@@ -27,6 +28,7 @@ class FormField extends Model
         'is_active' => 'boolean',
         'allow_other_option' => 'boolean',
         'validation_rules' => 'array',
+        'field_settings' => 'array',
     ];
 
     public const TYPES = [

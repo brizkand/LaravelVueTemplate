@@ -29,7 +29,11 @@
 		{label: 'Multiple Choice', value: 'radio', icon: 'pi pi-circle'},
 		{label: 'Checkbox', value: 'checkbox', icon: 'pi pi-check-square'},
 		{label: 'Date', value: 'date', icon: 'pi pi-calendar'},
+		{label: 'Time', value: 'time', icon: 'pi pi-clock'},
 		{label: 'Rating (1–5)', value: 'rating', icon: 'pi pi-star'},
+		{label: 'Linear Scale', value: 'linear_scale', icon: 'pi pi-minus'},
+		{label: 'Multiple Choice Grid', value: 'multiple_choice_grid', icon: 'pi pi-table'},
+		{label: 'Checkbox Grid', value: 'checkbox_grid', icon: 'pi pi-th-large'},
 		{label: 'File Upload', value: 'file', icon: 'pi pi-upload'},
 	]
 
@@ -47,6 +51,14 @@
 			max: null,
 			max_size_kb: null,
 			allowed_types: [],
+		},
+		field_settings: {
+			scale_start: 1,
+			scale_end: 5,
+			start_label: '',
+			end_label: '',
+			rows: [],
+			columns: [],
 		},
 		options: [],
 		allow_other_option: false,
@@ -79,6 +91,26 @@
 					max: value.validation_rules?.max ?? null,
 					max_size_kb: value.validation_rules?.max_size_kb ?? null,
 					allowed_types: Array.isArray(value.validation_rules?.allowed_types) ? value.validation_rules.allowed_types : [],
+				},
+				field_settings: {
+					scale_start: value.field_settings?.scale_start ?? 1,
+					scale_end: value.field_settings?.scale_end ?? 5,
+					start_label: value.field_settings?.start_label ?? '',
+					end_label: value.field_settings?.end_label ?? '',
+					rows: Array.isArray(value.field_settings?.rows)
+						? value.field_settings.rows.map((row, index) => ({
+								label: row.label ?? '',
+								value: row.value ?? '',
+								sort_order: row.sort_order ?? index + 1,
+							}))
+						: [],
+					columns: Array.isArray(value.field_settings?.columns)
+						? value.field_settings.columns.map((column, index) => ({
+								label: column.label ?? '',
+								value: column.value ?? '',
+								sort_order: column.sort_order ?? index + 1,
+							}))
+						: [],
 				},
 				options: Array.isArray(value.options)
 					? value.options.map((option, index) => ({
@@ -118,7 +150,7 @@
 
 	const dialogTitle = computed(() => (localForm.value.id ? 'Edit Question' : 'Add Question'))
 
-	const requiresOptions = computed(() => ['dropdown', 'radio', 'checkbox'].includes(localForm.value.type))
+	const supportsSimpleOptions = computed(() => ['dropdown', 'radio', 'checkbox'].includes(localForm.value.type))
 
 	const supportsPlaceholder = computed(() => ['short_text', 'long_text', 'number', 'email'].includes(localForm.value.type))
 
@@ -127,6 +159,10 @@
 	const supportsFileRules = computed(() => localForm.value.type === 'file')
 
 	const supportsOtherOption = computed(() => ['radio', 'checkbox'].includes(localForm.value.type))
+
+	const isLinearScale = computed(() => localForm.value.type === 'linear_scale')
+
+	const isGridType = computed(() => ['multiple_choice_grid', 'checkbox_grid'].includes(localForm.value.type))
 
 	const addOption = () => {
 		localForm.value.options.push({
@@ -164,6 +200,80 @@
 			.toLowerCase()
 			.replace(/[^\w\s-]/g, '')
 			.replace(/\s+/g, '_')
+	}
+
+	const addGridRow = () => {
+		localForm.value.field_settings.rows.push({
+			label: '',
+			value: '',
+			sort_order: localForm.value.field_settings.rows.length + 1,
+		})
+	}
+
+	const removeGridRow = (index) => {
+		localForm.value.field_settings.rows.splice(index, 1)
+		reindexGridRows()
+	}
+
+	const reindexGridRows = () => {
+		localForm.value.field_settings.rows = localForm.value.field_settings.rows.map((row, index) => ({
+			...row,
+			sort_order: index + 1,
+		}))
+	}
+
+	const addGridColumn = () => {
+		localForm.value.field_settings.columns.push({
+			label: '',
+			value: '',
+			sort_order: localForm.value.field_settings.columns.length + 1,
+		})
+	}
+
+	const removeGridColumn = (index) => {
+		localForm.value.field_settings.columns.splice(index, 1)
+		reindexGridColumns()
+	}
+
+	const reindexGridColumns = () => {
+		localForm.value.field_settings.columns = localForm.value.field_settings.columns.map((column, index) => ({
+			...column,
+			sort_order: index + 1,
+		}))
+	}
+
+	const autoFillGridRowValue = (index) => {
+		const row = localForm.value.field_settings.rows[index]
+
+		if (!row) return
+		if (row.value?.trim()) return
+
+		row.value = row.label
+			.trim()
+			.toLowerCase()
+			.replace(/[^\w\s-]/g, '')
+			.replace(/\s+/g, '_')
+	}
+
+	const autoFillGridColumnValue = (index) => {
+		const column = localForm.value.field_settings.columns[index]
+
+		if (!column) return
+		if (column.value?.trim()) return
+
+		column.value = column.label
+			.trim()
+			.toLowerCase()
+			.replace(/[^\w\s-]/g, '')
+			.replace(/\s+/g, '_')
+	}
+
+	const onGridRowDragEnd = () => {
+		reindexGridRows()
+	}
+
+	const onGridColumnDragEnd = () => {
+		reindexGridColumns()
 	}
 
 	const normalizeValidationRules = () => {
@@ -211,7 +321,7 @@
 			return false
 		}
 
-		if (requiresOptions.value) {
+		if (supportsSimpleOptions.value) {
 			if (!localForm.value.options.length) {
 				formError.value = 'Please add at least one option.'
 				return false
@@ -242,11 +352,65 @@
 			}
 		}
 
+		if (isLinearScale.value) {
+			const start = Number(localForm.value.field_settings.scale_start)
+			const end = Number(localForm.value.field_settings.scale_end)
+
+			if (Number.isNaN(start) || Number.isNaN(end)) {
+				formError.value = 'Linear scale values are required.'
+				return false
+			}
+
+			if (start >= end) {
+				formError.value = 'Linear scale end value must be greater than start value.'
+				return false
+			}
+
+			if (!localForm.value.field_settings.start_label?.trim()) {
+				formError.value = 'Linear scale start label is required.'
+				return false
+			}
+
+			if (!localForm.value.field_settings.end_label?.trim()) {
+				formError.value = 'Linear scale end label is required.'
+				return false
+			}
+		}
+
+		if (isGridType.value) {
+			const rows = localForm.value.field_settings.rows || []
+			const columns = localForm.value.field_settings.columns || []
+
+			if (!rows.length) {
+				formError.value = 'Please add at least one grid row.'
+				return false
+			}
+
+			if (!columns.length) {
+				formError.value = 'Please add at least one grid column.'
+				return false
+			}
+
+			const invalidRow = rows.some((row) => !row.label.trim() || !row.value.trim())
+			if (invalidRow) {
+				formError.value = 'All grid rows must have both label and value.'
+				return false
+			}
+
+			const invalidColumn = columns.some((column) => !column.label.trim() || !column.value.trim())
+			if (invalidColumn) {
+				formError.value = 'All grid columns must have both label and value.'
+				return false
+			}
+		}
+
 		return true
 	}
 
 	const buildPayload = () => {
 		reindexOptions()
+		reindexGridRows()
+		reindexGridColumns()
 
 		return {
 			id: localForm.value.id,
@@ -258,7 +422,34 @@
 			is_active: localForm.value.is_active,
 			sort_order: localForm.value.sort_order ?? 1,
 			validation_rules: normalizeValidationRules(),
-			options: requiresOptions.value
+			field_settings: isLinearScale.value
+				? {
+						scale_start: Number(localForm.value.field_settings.scale_start),
+						scale_end: Number(localForm.value.field_settings.scale_end),
+						start_label: localForm.value.field_settings.start_label?.trim() || '',
+						end_label: localForm.value.field_settings.end_label?.trim() || '',
+						rows: [],
+						columns: [],
+					}
+				: isGridType.value
+					? {
+							scale_start: null,
+							scale_end: null,
+							start_label: '',
+							end_label: '',
+							rows: localForm.value.field_settings.rows.map((row, index) => ({
+								label: row.label.trim(),
+								value: row.value.trim(),
+								sort_order: index + 1,
+							})),
+							columns: localForm.value.field_settings.columns.map((column, index) => ({
+								label: column.label.trim(),
+								value: column.value.trim(),
+								sort_order: index + 1,
+							})),
+						}
+					: null,
+			options: supportsSimpleOptions.value
 				? localForm.value.options.map((option, index) => ({
 						id: option.id ?? null,
 						label: option.label.trim(),
@@ -293,7 +484,7 @@
 </script>
 
 <template>
-	<Dialog v-model:visible="dialogVisible" modal closable :dismissableMask="true" :style="{width: '950px', maxWidth: '95vw'}" :header="dialogTitle">
+	<Dialog v-model:visible="dialogVisible" modal closable :dismissableMask="true" :style="{width: '980px', maxWidth: '95vw'}" :header="dialogTitle">
 		<div class="editor-dialog-body">
 			<div class="editor-grid">
 				<div class="field-block">
@@ -339,9 +530,9 @@
 				</div>
 			</div>
 
-			<Divider />
+			<div v-if="supportsSimpleOptions" class="section-block">
+				<Divider />
 
-			<div v-if="requiresOptions" class="section-block">
 				<div class="section-header">
 					<div>
 						<h3>Options</h3>
@@ -385,6 +576,104 @@
 					<label class="editor-label">Other Option Label</label>
 					<InputText v-model="localForm.other_option_label" class="w-full" placeholder="Other" />
 				</div>
+			</div>
+
+			<div v-if="isLinearScale" class="section-block">
+				<Divider />
+				<div class="section-header">
+					<div>
+						<h3>Linear Scale Settings</h3>
+						<p>Configure the scale range and labels.</p>
+					</div>
+				</div>
+
+				<div class="editor-grid">
+					<div class="field-block">
+						<label class="editor-label">Start Value</label>
+						<InputNumber v-model="localForm.field_settings.scale_start" :min="0" class="w-full" inputClass="w-full" />
+					</div>
+
+					<div class="field-block">
+						<label class="editor-label">End Value</label>
+						<InputNumber v-model="localForm.field_settings.scale_end" :min="1" class="w-full" inputClass="w-full" />
+					</div>
+
+					<div class="field-block">
+						<label class="editor-label">Start Label</label>
+						<InputText v-model="localForm.field_settings.start_label" class="w-full" placeholder="e.g. Poor" />
+					</div>
+
+					<div class="field-block">
+						<label class="editor-label">End Label</label>
+						<InputText v-model="localForm.field_settings.end_label" class="w-full" placeholder="e.g. Excellent" />
+					</div>
+				</div>
+			</div>
+
+			<div v-if="isGridType" class="section-block">
+				<Divider />
+
+				<div class="section-header">
+					<div>
+						<h3>Grid Rows</h3>
+						<p>Add the question rows.</p>
+					</div>
+
+					<Button type="button" label="Add Row" icon="pi pi-plus" severity="secondary" outlined @click="addGridRow" />
+				</div>
+
+				<div v-if="!localForm.field_settings.rows.length" class="options-empty">No rows yet.</div>
+
+				<draggable v-else v-model="localForm.field_settings.rows" item-key="sort_order" handle=".option-drag-handle" animation="200" class="options-list" @end="onGridRowDragEnd">
+					<template #item="{element, index}">
+						<div class="option-row">
+							<div class="option-drag-handle" title="Drag to reorder">
+								<i class="pi pi-bars" />
+							</div>
+
+							<div class="option-index">
+								{{ index + 1 }}
+							</div>
+
+							<InputText v-model="element.label" class="w-full" placeholder="Row label" @blur="autoFillGridRowValue(index)" />
+
+							<InputText v-model="element.value" class="w-full" placeholder="Row value" />
+
+							<Button type="button" icon="pi pi-trash" text rounded severity="danger" @click="removeGridRow(index)" />
+						</div>
+					</template>
+				</draggable>
+
+				<div class="section-header mt-4">
+					<div>
+						<h3>Grid Columns</h3>
+						<p>Add the selectable columns.</p>
+					</div>
+
+					<Button type="button" label="Add Column" icon="pi pi-plus" severity="secondary" outlined @click="addGridColumn" />
+				</div>
+
+				<div v-if="!localForm.field_settings.columns.length" class="options-empty">No columns yet.</div>
+
+				<draggable v-else v-model="localForm.field_settings.columns" item-key="sort_order" handle=".option-drag-handle" animation="200" class="options-list" @end="onGridColumnDragEnd">
+					<template #item="{element, index}">
+						<div class="option-row">
+							<div class="option-drag-handle" title="Drag to reorder">
+								<i class="pi pi-bars" />
+							</div>
+
+							<div class="option-index">
+								{{ index + 1 }}
+							</div>
+
+							<InputText v-model="element.label" class="w-full" placeholder="Column label" @blur="autoFillGridColumnValue(index)" />
+
+							<InputText v-model="element.value" class="w-full" placeholder="Column value" />
+
+							<Button type="button" icon="pi pi-trash" text rounded severity="danger" @click="removeGridColumn(index)" />
+						</div>
+					</template>
+				</draggable>
 			</div>
 
 			<div v-if="supportsMinMax || supportsFileRules" class="section-block">
@@ -604,6 +893,10 @@
 		justify-content: flex-end;
 		gap: 0.75rem;
 		width: 100%;
+	}
+
+	.mt-4 {
+		margin-top: 1rem;
 	}
 
 	@media (max-width: 768px) {

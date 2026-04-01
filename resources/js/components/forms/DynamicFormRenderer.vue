@@ -32,15 +32,32 @@
 	const initializeAnswers = () => {
 		activeFields.value.forEach((field) => {
 			if (!field) return
-
 			if (answers[field.id] !== undefined) return
 
-			if (field.type === 'checkbox') {
-				answers[field.id] = []
-			} else if (field.type === 'rating') {
-				answers[field.id] = 0
-			} else {
-				answers[field.id] = null
+			switch (field.type) {
+				case 'checkbox':
+					answers[field.id] = []
+					break
+
+				case 'rating':
+					answers[field.id] = 0
+					break
+
+				case 'multiple_choice_grid':
+					answers[field.id] = {}
+					break
+
+				case 'checkbox_grid':
+					answers[field.id] = {}
+					break
+
+				case 'linear_scale':
+					answers[field.id] = null
+					break
+
+				default:
+					answers[field.id] = null
+					break
 			}
 		})
 	}
@@ -59,12 +76,48 @@
 				} else {
 					return 'This question is required.'
 				}
-			} else if (field.type === 'rating') {
+			}
+
+			if (field.type === 'rating') {
 				if (!value || Number(value) < 1) {
 					return 'Please provide a rating.'
 				}
-			} else if (value === null || value === undefined || value === '') {
-				return 'This question is required.'
+			}
+
+			if (field.type === 'linear_scale') {
+				if (value === null || value === undefined || value === '') {
+					return 'This question is required.'
+				}
+			}
+
+			if (field.type === 'time') {
+				if (!value) {
+					return 'This question is required.'
+				}
+			}
+
+			if (field.type === 'multiple_choice_grid') {
+				const rows = field.field_settings?.rows || []
+				const hasMissingRow = rows.some((row) => !value?.[row.value])
+
+				if (hasMissingRow) {
+					return 'Please answer all rows in this grid.'
+				}
+			}
+
+			if (field.type === 'checkbox_grid') {
+				const rows = field.field_settings?.rows || []
+				const hasMissingRow = rows.some((row) => !Array.isArray(value?.[row.value]) || value[row.value].length === 0)
+
+				if (hasMissingRow) {
+					return 'Please answer all rows in this grid.'
+				}
+			}
+
+			if (field.type !== 'checkbox' && field.type !== 'rating' && field.type !== 'linear_scale' && field.type !== 'time' && field.type !== 'multiple_choice_grid' && field.type !== 'checkbox_grid') {
+				if (value === null || value === undefined || value === '') {
+					return 'This question is required.'
+				}
 			}
 		}
 
@@ -72,6 +125,32 @@
 			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 			if (!emailRegex.test(value)) {
 				return 'Please enter a valid email address.'
+			}
+		}
+
+		if (field.type === 'number' && value !== null && value !== '' && value !== undefined) {
+			const min = field.validation_rules?.min
+			const max = field.validation_rules?.max
+
+			if (min !== null && min !== undefined && Number(value) < Number(min)) {
+				return `Value must be at least ${min}.`
+			}
+
+			if (max !== null && max !== undefined && Number(value) > Number(max)) {
+				return `Value must not exceed ${max}.`
+			}
+		}
+
+		if (field.type === 'rating' && value !== null && value !== '' && value !== undefined) {
+			const min = field.validation_rules?.min
+			const max = field.validation_rules?.max
+
+			if (min !== null && min !== undefined && Number(value) < Number(min)) {
+				return `Rating must be at least ${min}.`
+			}
+
+			if (max !== null && max !== undefined && Number(value) > Number(max)) {
+				return `Rating must not exceed ${max}.`
 			}
 		}
 
