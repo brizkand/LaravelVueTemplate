@@ -35,7 +35,7 @@ class FormResource extends JsonResource
                 return $this->fields->map(function ($field) {
                     return [
                         'id' => $field->id,
-                        'type' => $field->type,
+                        'type' => $this->normalizeFieldType($field->type),
                         'label' => $field->label,
                         'description' => $field->description,
                         'is_required' => $field->is_required,
@@ -43,6 +43,7 @@ class FormResource extends JsonResource
                         'sort_order' => $field->sort_order,
                         'is_active' => $field->is_active,
                         'validation_rules' => $field->validation_rules,
+                        'field_settings' => $field->field_settings,
                         'allow_other_option' => $field->allow_other_option,
                         'other_option_label' => $field->other_option_label,
                         'options' => $field->options->map(function ($option) {
@@ -57,5 +58,20 @@ class FormResource extends JsonResource
                 })->values();
             }),
         ];
+    }
+
+    private function normalizeFieldType(?string $type): ?string
+    {
+        return match ($type) {
+            'multiple_choice' => 'radio',
+            'multiple-choice' => 'radio',
+            'shorttext' => 'short_text',
+            'longtext' => 'long_text',
+            'file_upload' => 'file',
+            'linearScale' => 'linear_scale',
+            'multiple_choice_grid_question' => 'multiple_choice_grid',
+            'checkbox_grid_question' => 'checkbox_grid',
+            default => $type,
+        };
     }
 }

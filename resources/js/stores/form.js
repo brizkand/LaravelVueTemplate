@@ -102,14 +102,46 @@ export const useFormStore = defineStore('form', () => {
 				placeholder: field.placeholder ?? '',
 				sort_order: field.sort_order ?? fieldIndex + 1,
 				is_active: field.is_active !== false,
-				validation_rules: field.validation_rules ?? {
-					min: null,
-					max: null,
-					max_size_kb: null,
-					allowed_types: [],
+
+				validation_rules: {
+					min: field.validation_rules?.min ?? null,
+					max: field.validation_rules?.max ?? null,
+					max_size_kb: field.validation_rules?.max_size_kb ?? null,
+					allowed_types: Array.isArray(field.validation_rules?.allowed_types) ? [...field.validation_rules.allowed_types] : [],
 				},
+
+				field_settings:
+					field.type === 'linear_scale'
+						? {
+								scale_start: field.field_settings?.scale_start ?? 1,
+								scale_end: field.field_settings?.scale_end ?? 5,
+								start_label: field.field_settings?.start_label ?? '',
+								end_label: field.field_settings?.end_label ?? '',
+								rows: [],
+								columns: [],
+							}
+						: ['multiple_choice_grid', 'checkbox_grid'].includes(field.type)
+							? {
+									scale_start: null,
+									scale_end: null,
+									start_label: null,
+									end_label: null,
+									rows: (field.field_settings?.rows || []).map((row, rowIndex) => ({
+										label: row.label,
+										value: row.value,
+										sort_order: row.sort_order ?? rowIndex + 1,
+									})),
+									columns: (field.field_settings?.columns || []).map((column, columnIndex) => ({
+										label: column.label,
+										value: column.value,
+										sort_order: column.sort_order ?? columnIndex + 1,
+									})),
+								}
+							: null,
+
 				allow_other_option: field.allow_other_option ?? false,
 				other_option_label: field.other_option_label ?? 'Other',
+
 				options: (field.options || []).map((option, optionIndex) => ({
 					label: option.label,
 					value: option.value,

@@ -35,10 +35,58 @@
 		}))
 	})
 
+	const linearScaleOptions = computed(() => {
+		const start = Number(safeField.value?.field_settings?.scale_start ?? 1)
+		const end = Number(safeField.value?.field_settings?.scale_end ?? 5)
+
+		if (Number.isNaN(start) || Number.isNaN(end) || end < start) return []
+
+		return Array.from({length: end - start + 1}, (_, index) => start + index)
+	})
+
+	const gridRows = computed(() => safeField.value?.field_settings?.rows ?? [])
+	const gridColumns = computed(() => safeField.value?.field_settings?.columns ?? [])
+
+	const radioSelectedValue = computed(() => {
+		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue)) {
+			return props.modelValue.selected ?? null
+		}
+
+		return props.modelValue
+	})
+
+	const radioOtherText = computed(() => {
+		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue)) {
+			return props.modelValue.other_text ?? ''
+		}
+
+		return ''
+	})
+
 	const checkboxValue = computed(() => {
 		if (Array.isArray(props.modelValue)) return props.modelValue
-		if (props.modelValue && Array.isArray(props.modelValue.selected)) return props.modelValue.selected
+
+		if (props.modelValue && typeof props.modelValue === 'object' && Array.isArray(props.modelValue.selected)) {
+			return props.modelValue.selected
+		}
+
 		return []
+	})
+
+	const checkboxOtherText = computed(() => {
+		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue)) {
+			return props.modelValue.other_text ?? ''
+		}
+
+		return ''
+	})
+
+	const inputId = computed(() => {
+		if (!safeField.value?.id) {
+			return `field-temp-${Math.random().toString(36).slice(2, 9)}`
+		}
+
+		return `field-${safeField.value.id}`
 	})
 
 	const updateCheckbox = (optionValue, checked) => {
@@ -54,16 +102,50 @@
 		if (current.includes('__other__')) {
 			emit('update:modelValue', {
 				selected: current,
-				other_text: props.modelValue?.other_text || '',
+				other_text: checkboxOtherText.value,
 			})
 		} else {
 			emit('update:modelValue', current)
 		}
 	}
-	const inputId = computed(() => {
-		if (!safeField.value?.id) return `field-temp-${Math.random().toString(36).slice(2, 9)}`
-		return `field-${safeField.value.id}`
-	})
+
+	const updateCheckboxOtherText = (value) => {
+		emit('update:modelValue', {
+			selected: checkboxValue.value,
+			other_text: value,
+		})
+	}
+
+	const updateRadioOther = (value) => {
+		emit('update:modelValue', {
+			selected: '__other__',
+			other_text: value,
+		})
+	}
+
+	const updateMultipleChoiceGrid = (rowValue, selectedColumnValue) => {
+		emit('update:modelValue', {
+			...(props.modelValue || {}),
+			[rowValue]: selectedColumnValue,
+		})
+	}
+
+	const updateCheckboxGrid = (rowValue, columnValue, checked) => {
+		const currentModel = props.modelValue && typeof props.modelValue === 'object' ? {...props.modelValue} : {}
+
+		const currentRow = Array.isArray(currentModel[rowValue]) ? [...currentModel[rowValue]] : []
+
+		if (checked) {
+			if (!currentRow.includes(columnValue)) currentRow.push(columnValue)
+		} else {
+			const index = currentRow.indexOf(columnValue)
+			if (index > -1) currentRow.splice(index, 1)
+		}
+
+		currentModel[rowValue] = currentRow
+
+		emit('update:modelValue', currentModel)
+	}
 </script>
 
 <template>
@@ -80,6 +162,7 @@
 		</div>
 
 		<div class="field-control">
+			<!-- Short Text -->
 			<InputText
 				v-if="safeField.type === 'short_text'"
 				:id="inputId"
@@ -89,6 +172,7 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
+			<!-- Long Text -->
 			<Textarea
 				v-else-if="safeField.type === 'long_text'"
 				:id="inputId"
@@ -100,6 +184,7 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
+			<!-- Number -->
 			<InputNumber
 				v-else-if="safeField.type === 'number'"
 				:inputId="inputId"
@@ -109,6 +194,7 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
+			<!-- Email -->
 			<InputText
 				v-else-if="safeField.type === 'email'"
 				:id="inputId"
@@ -119,6 +205,7 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
+			<!-- Dropdown -->
 			<Select
 				v-else-if="safeField.type === 'dropdown'"
 				:modelValue="modelValue"
@@ -130,9 +217,10 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
+			<!-- Multiple Choice -->
 			<div v-else-if="safeField.type === 'radio'" class="choice-group">
 				<div v-for="option in normalizedOptions" :key="option.id" class="choice-item">
-					<RadioButton :inputId="`${inputId}-radio-${option.id}`" :modelValue="modelValue" :value="option.value" :disabled="readonly" @update:modelValue="emit('update:modelValue', $event)" />
+					<RadioButton :inputId="`${inputId}-radio-${option.id}`" :modelValue="radioSelectedValue" :value="option.value" :disabled="readonly" @update:modelValue="emit('update:modelValue', $event)" />
 					<label :for="`${inputId}-radio-${option.id}`">
 						{{ option.label }}
 					</label>
@@ -141,33 +229,30 @@
 				<div v-if="safeField.allow_other_option" class="choice-item other-option-block">
 					<RadioButton
 						:inputId="`${inputId}-radio-other`"
-						:modelValue="typeof modelValue === 'object' ? modelValue?.selected : modelValue"
+						:modelValue="radioSelectedValue"
 						value="__other__"
 						:disabled="readonly"
 						@update:modelValue="
 							emit('update:modelValue', {
 								selected: '__other__',
-								other_text: typeof modelValue === 'object' ? modelValue?.other_text || '' : '',
+								other_text: radioOtherText,
 							})
 						" />
 					<label :for="`${inputId}-radio-other`">
 						{{ safeField.other_option_label || 'Other' }}
 					</label>
+
 					<InputText
-						v-if="(typeof modelValue === 'object' ? modelValue?.selected : modelValue) === '__other__'"
-						:modelValue="typeof modelValue === 'object' ? modelValue?.other_text || '' : ''"
+						v-if="radioSelectedValue === '__other__'"
+						:modelValue="radioOtherText"
 						placeholder="Please specify"
 						class="other-input"
 						:disabled="readonly"
-						@update:modelValue="
-							emit('update:modelValue', {
-								selected: '__other__',
-								other_text: $event,
-							})
-						" />
+						@update:modelValue="updateRadioOther" />
 				</div>
 			</div>
 
+			<!-- Checkbox -->
 			<div v-else-if="safeField.type === 'checkbox'" class="choice-group">
 				<div v-for="option in normalizedOptions" :key="option.id" class="choice-item">
 					<Checkbox
@@ -191,21 +276,18 @@
 					<label :for="`${inputId}-checkbox-other`">
 						{{ safeField.other_option_label || 'Other' }}
 					</label>
+
 					<InputText
 						v-if="checkboxValue.includes('__other__')"
-						:modelValue="typeof modelValue === 'object' ? modelValue?.other_text || '' : ''"
+						:modelValue="checkboxOtherText"
 						placeholder="Please specify"
 						class="other-input"
 						:disabled="readonly"
-						@update:modelValue="
-							emit('update:modelValue', {
-								selected: Array.isArray(modelValue?.selected) ? modelValue.selected : checkboxValue,
-								other_text: $event,
-							})
-						" />
+						@update:modelValue="updateCheckboxOtherText" />
 				</div>
 			</div>
 
+			<!-- Date -->
 			<DatePicker
 				v-else-if="safeField.type === 'date'"
 				:modelValue="modelValue"
@@ -215,6 +297,10 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
+			<!-- Time -->
+			<InputText v-else-if="safeField.type === 'time'" :id="inputId" :modelValue="modelValue" type="time" class="w-full" :disabled="readonly" @update:modelValue="emit('update:modelValue', $event)" />
+
+			<!-- Rating -->
 			<RatingInput
 				v-else-if="safeField.type === 'rating'"
 				:modelValue="Number(modelValue || 0)"
@@ -222,11 +308,82 @@
 				:readonly="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<div v-else-if="safeField.type === 'file'" class="file-placeholder">
-				<i class="pi pi-upload text-xl" />
-				<span>File upload preview placeholder.</span>
+			<!-- Linear Scale -->
+			<div v-else-if="safeField.type === 'linear_scale'" class="linear-scale-wrapper">
+				<div class="linear-scale-labels">
+					<span>{{ safeField.field_settings?.start_label || '' }}</span>
+					<span>{{ safeField.field_settings?.end_label || '' }}</span>
+				</div>
+
+				<div class="linear-scale-options">
+					<div v-for="value in linearScaleOptions" :key="value" class="linear-scale-item">
+						<label :for="`${inputId}-scale-${value}`">{{ value }}</label>
+						<RadioButton :inputId="`${inputId}-scale-${value}`" :modelValue="modelValue" :value="value" :disabled="readonly" @update:modelValue="emit('update:modelValue', $event)" />
+					</div>
+				</div>
 			</div>
 
+			<!-- Multiple Choice Grid -->
+			<div v-else-if="safeField.type === 'multiple_choice_grid'" class="grid-wrapper">
+				<table class="grid-table">
+					<thead>
+						<tr>
+							<th></th>
+							<th v-for="column in gridColumns" :key="column.value">
+								{{ column.label }}
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="row in gridRows" :key="row.value">
+							<td class="grid-row-label">{{ row.label }}</td>
+							<td v-for="column in gridColumns" :key="`${row.value}-${column.value}`">
+								<RadioButton
+									:inputId="`${inputId}-${row.value}-${column.value}`"
+									:modelValue="modelValue?.[row.value] ?? null"
+									:value="column.value"
+									:disabled="readonly"
+									@update:modelValue="updateMultipleChoiceGrid(row.value, $event)" />
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Checkbox Grid -->
+			<div v-else-if="safeField.type === 'checkbox_grid'" class="grid-wrapper">
+				<table class="grid-table">
+					<thead>
+						<tr>
+							<th></th>
+							<th v-for="column in gridColumns" :key="column.value">
+								{{ column.label }}
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="row in gridRows" :key="row.value">
+							<td class="grid-row-label">{{ row.label }}</td>
+							<td v-for="column in gridColumns" :key="`${row.value}-${column.value}`">
+								<Checkbox
+									:inputId="`${inputId}-${row.value}-${column.value}`"
+									:binary="true"
+									:modelValue="Array.isArray(modelValue?.[row.value]) ? modelValue[row.value].includes(column.value) : false"
+									:disabled="readonly"
+									@update:modelValue="(checked) => updateCheckboxGrid(row.value, column.value, checked)" />
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- File Upload -->
+			<div v-else-if="safeField.type === 'file'" class="file-placeholder">
+				<i class="pi pi-upload text-xl" />
+				<span>File upload input can be implemented next.</span>
+			</div>
+
+			<!-- Unsupported -->
 			<div v-else class="unsupported-field">Unsupported field type: {{ safeField.type }}</div>
 		</div>
 
@@ -280,6 +437,65 @@
 		gap: 0.75rem;
 	}
 
+	.other-option-block {
+		flex-wrap: wrap;
+	}
+
+	.other-input {
+		margin-left: 2rem;
+		min-width: 260px;
+		flex: 1;
+	}
+
+	.linear-scale-wrapper {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.linear-scale-labels {
+		display: flex;
+		justify-content: space-between;
+		font-size: 0.875rem;
+		color: var(--text-color-secondary);
+	}
+
+	.linear-scale-options {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+		gap: 0.75rem;
+	}
+
+	.linear-scale-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.grid-wrapper {
+		overflow-x: auto;
+	}
+
+	.grid-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+
+	.grid-table th,
+	.grid-table td {
+		padding: 0.75rem;
+		border: 1px solid var(--surface-border);
+		text-align: center;
+		min-width: 90px;
+	}
+
+	.grid-row-label {
+		text-align: left;
+		font-weight: 600;
+		min-width: 180px;
+	}
+
 	.file-placeholder,
 	.unsupported-field {
 		min-height: 3rem;
@@ -291,15 +507,5 @@
 		border-radius: 12px;
 		color: var(--text-color-secondary);
 		background: var(--surface-50);
-	}
-
-	.other-option-block {
-		flex-wrap: wrap;
-	}
-
-	.other-input {
-		margin-left: 2rem;
-		min-width: 260px;
-		flex: 1;
 	}
 </style>

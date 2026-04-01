@@ -90,6 +90,13 @@
 		})
 	}
 
+	const goToRespond = (form) => {
+		router.push({
+			name: 'forms.respond',
+			params: {id: form.id},
+		})
+	}
+
 	const goToAnalytics = (form) => {
 		router.push({
 			name: 'forms.analytics',
@@ -114,12 +121,14 @@
 				detail: `"${form.title}" was duplicated successfully.`,
 				life: 3000,
 			})
-		} catch {
+
+			await formStore.fetchForms()
+		} catch (error) {
 			toast.add({
 				severity: 'error',
 				summary: 'Duplicate Failed',
-				detail: 'Unable to duplicate form.',
-				life: 3000,
+				detail: error?.message || 'Unable to duplicate form.',
+				life: 4000,
 			})
 		}
 	}
@@ -338,6 +347,7 @@
 				<Column header="Actions" style="min-width: 20rem">
 					<template #body="{data}">
 						<div class="action-buttons">
+							<Button icon="pi pi-external-link" text rounded severity="success" v-tooltip.top="'Open Form'" @click="goToRespond(data)" />
 							<Button icon="pi pi-pencil" text rounded severity="secondary" v-tooltip.top="'Open Builder'" @click="goToBuilder(data)" />
 							<Button icon="pi pi-chart-pie" text rounded severity="info" v-tooltip.top="'Analytics'" @click="goToAnalytics(data)" />
 							<Button icon="pi pi-table" text rounded severity="help" v-tooltip.top="'Responses'" @click="goToResponses(data)" />
