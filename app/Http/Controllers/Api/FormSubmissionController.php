@@ -119,6 +119,18 @@ class FormSubmissionController extends Controller
             }
         }
 
+        foreach ($activeFields as $field) {
+            if ($field->type === 'file' && $field->is_required) {
+                $uploadedFile = $request->file("files.{$field->id}");
+
+                if (! $uploadedFile) {
+                    return response()->json([
+                        'message' => "The field '{$field->label}' is required.",
+                    ], 422);
+                }
+            }
+        }
+
         $response = DB::transaction(function () use ($request, $form, $activeFields, $user) {
             $response = $form->responses()->create([
                 'submitted_by' => $user?->id,
@@ -202,9 +214,14 @@ class FormSubmissionController extends Controller
                         break;
 
                     case 'file':
-                        $payload['value_file_path'] = ($normalized['value'] === '' || $normalized['value'] === null)
-                            ? null
-                            : $normalized['value'];
+                        $uploadedFile = $request->file("files.{$field->id}");
+
+                        if ($uploadedFile) {
+                            $path = $uploadedFile->store('form-uploads', 'public');
+                            $payload['value_file_path'] = $path;
+                        } else {
+                            $payload['value_file_path'] = null;
+                        }
                         break;
 
                     default:
@@ -275,6 +292,9 @@ class FormSubmissionController extends Controller
                 if ($hasMissingRow) {
                     return "Please answer all rows in '{$field->label}'.";
                 }
+                break;
+
+            case 'file':
                 break;
 
             default:

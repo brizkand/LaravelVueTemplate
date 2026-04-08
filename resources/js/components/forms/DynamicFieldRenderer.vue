@@ -1,5 +1,5 @@
 <script setup>
-	import {computed} from 'vue'
+	import {computed, ref} from 'vue'
 	import RatingInput from './RatingInput.vue'
 
 	const props = defineProps({
@@ -8,7 +8,7 @@
 			required: true,
 		},
 		modelValue: {
-			type: [String, Number, Array, Object, Date, null],
+			type: [String, Number, Array, Object, Date, File, null],
 			default: null,
 		},
 		error: {
@@ -48,7 +48,7 @@
 	const gridColumns = computed(() => safeField.value?.field_settings?.columns ?? [])
 
 	const radioSelectedValue = computed(() => {
-		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue)) {
+		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue) && !(props.modelValue instanceof File)) {
 			return props.modelValue.selected ?? null
 		}
 
@@ -56,7 +56,7 @@
 	})
 
 	const radioOtherText = computed(() => {
-		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue)) {
+		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue) && !(props.modelValue instanceof File)) {
 			return props.modelValue.other_text ?? ''
 		}
 
@@ -66,7 +66,7 @@
 	const checkboxValue = computed(() => {
 		if (Array.isArray(props.modelValue)) return props.modelValue
 
-		if (props.modelValue && typeof props.modelValue === 'object' && Array.isArray(props.modelValue.selected)) {
+		if (props.modelValue && typeof props.modelValue === 'object' && !(props.modelValue instanceof File) && Array.isArray(props.modelValue.selected)) {
 			return props.modelValue.selected
 		}
 
@@ -74,7 +74,7 @@
 	})
 
 	const checkboxOtherText = computed(() => {
-		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue)) {
+		if (props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue) && !(props.modelValue instanceof File)) {
 			return props.modelValue.other_text ?? ''
 		}
 
@@ -88,6 +88,15 @@
 
 		return `field-${safeField.value.id}`
 	})
+
+	const fileInputRef = ref(null)
+	const isDraggingFile = ref(false)
+	const fileError = ref('')
+
+	const effectiveError = computed(() => fileError.value || props.error)
+
+	const maxFileSizeKb = 5096
+	const maxFileSizeBytes = maxFileSizeKb * 1024
 
 	const updateCheckbox = (optionValue, checked) => {
 		const current = [...checkboxValue.value]
@@ -131,7 +140,7 @@
 	}
 
 	const updateCheckboxGrid = (rowValue, columnValue, checked) => {
-		const currentModel = props.modelValue && typeof props.modelValue === 'object' ? {...props.modelValue} : {}
+		const currentModel = props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue) && !(props.modelValue instanceof File) ? {...props.modelValue} : {}
 
 		const currentRow = Array.isArray(currentModel[rowValue]) ? [...currentModel[rowValue]] : []
 
@@ -146,10 +155,97 @@
 
 		emit('update:modelValue', currentModel)
 	}
+
+	const validateSelectedFile = (file) => {
+		if (!file) {
+			return {valid: false, message: 'No file selected.'}
+		}
+
+		const isPdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf')
+
+		if (!isPdf) {
+			return {valid: false, message: 'Only PDF files are allowed.'}
+		}
+
+		if (file.size > maxFileSizeBytes) {
+			return {valid: false, message: `File size must not exceed ${maxFileSizeKb} KB.`}
+		}
+
+		return {valid: true, message: ''}
+	}
+
+	const applySelectedFile = (file) => {
+		if (!file) {
+			fileError.value = ''
+			emit('update:modelValue', null)
+			return
+		}
+
+		const result = validateSelectedFile(file)
+
+		if (!result.valid) {
+			fileError.value = result.message
+			emit('update:modelValue', null)
+
+			if (fileInputRef.value) {
+				fileInputRef.value.value = ''
+			}
+
+			return
+		}
+
+		fileError.value = ''
+		emit('update:modelValue', file)
+	}
+
+	const openFilePicker = () => {
+		if (props.readonly) return
+		fileInputRef.value?.click()
+	}
+
+	const handleFileSelect = (event) => {
+		const file = event.target.files?.[0] || null
+		applySelectedFile(file)
+	}
+
+	const handleFileDragOver = (event) => {
+		if (props.readonly) return
+
+		event.preventDefault()
+		isDraggingFile.value = true
+	}
+
+	const handleFileDragLeave = (event) => {
+		if (props.readonly) return
+
+		event.preventDefault()
+		isDraggingFile.value = false
+	}
+
+	const handleFileDrop = (event) => {
+		if (props.readonly) return
+
+		event.preventDefault()
+		isDraggingFile.value = false
+
+		const file = event.dataTransfer?.files?.[0] || null
+		applySelectedFile(file)
+	}
+
+	const clearSelectedFile = () => {
+		if (props.readonly) return
+
+		fileError.value = ''
+		emit('update:modelValue', null)
+
+		if (fileInputRef.value) {
+			fileInputRef.value.value = ''
+		}
+	}
 </script>
 
 <template>
-	<div v-if="safeField" class="dynamic-field" :class="{'has-error': error}">
+	<div v-if="safeField" class="dynamic-field" :class="{'has-error': effectiveError}">
 		<div class="field-header">
 			<label class="field-label" :for="inputId">
 				{{ safeField.label }}
@@ -162,7 +258,6 @@
 		</div>
 
 		<div class="field-control">
-			<!-- Short Text -->
 			<InputText
 				v-if="safeField.type === 'short_text'"
 				:id="inputId"
@@ -172,7 +267,6 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Long Text -->
 			<Textarea
 				v-else-if="safeField.type === 'long_text'"
 				:id="inputId"
@@ -184,7 +278,6 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Number -->
 			<InputNumber
 				v-else-if="safeField.type === 'number'"
 				:inputId="inputId"
@@ -194,7 +287,6 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Email -->
 			<InputText
 				v-else-if="safeField.type === 'email'"
 				:id="inputId"
@@ -205,7 +297,6 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Dropdown -->
 			<Select
 				v-else-if="safeField.type === 'dropdown'"
 				:modelValue="modelValue"
@@ -217,7 +308,6 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Multiple Choice -->
 			<div v-else-if="safeField.type === 'radio'" class="choice-group">
 				<div v-for="option in normalizedOptions" :key="option.id" class="choice-item">
 					<RadioButton :inputId="`${inputId}-radio-${option.id}`" :modelValue="radioSelectedValue" :value="option.value" :disabled="readonly" @update:modelValue="emit('update:modelValue', $event)" />
@@ -252,7 +342,6 @@
 				</div>
 			</div>
 
-			<!-- Checkbox -->
 			<div v-else-if="safeField.type === 'checkbox'" class="choice-group">
 				<div v-for="option in normalizedOptions" :key="option.id" class="choice-item">
 					<Checkbox
@@ -287,7 +376,6 @@
 				</div>
 			</div>
 
-			<!-- Date -->
 			<DatePicker
 				v-else-if="safeField.type === 'date'"
 				:modelValue="modelValue"
@@ -297,10 +385,8 @@
 				:disabled="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Time -->
 			<InputText v-else-if="safeField.type === 'time'" :id="inputId" :modelValue="modelValue" type="time" class="w-full" :disabled="readonly" @update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Rating -->
 			<RatingInput
 				v-else-if="safeField.type === 'rating'"
 				:modelValue="Number(modelValue || 0)"
@@ -308,7 +394,6 @@
 				:readonly="readonly"
 				@update:modelValue="emit('update:modelValue', $event)" />
 
-			<!-- Linear Scale -->
 			<div v-else-if="safeField.type === 'linear_scale'" class="linear-scale-wrapper">
 				<div class="linear-scale-labels">
 					<span>{{ safeField.field_settings?.start_label || '' }}</span>
@@ -323,7 +408,6 @@
 				</div>
 			</div>
 
-			<!-- Multiple Choice Grid -->
 			<div v-else-if="safeField.type === 'multiple_choice_grid'" class="grid-wrapper">
 				<table class="grid-table">
 					<thead>
@@ -350,7 +434,6 @@
 				</table>
 			</div>
 
-			<!-- Checkbox Grid -->
 			<div v-else-if="safeField.type === 'checkbox_grid'" class="grid-wrapper">
 				<table class="grid-table">
 					<thead>
@@ -377,18 +460,68 @@
 				</table>
 			</div>
 
-			<!-- File Upload -->
-			<div v-else-if="safeField.type === 'file'" class="file-placeholder">
-				<i class="pi pi-upload text-xl" />
-				<span>File upload input can be implemented next.</span>
+			<div v-else-if="safeField.type === 'file'" class="file-upload-wrapper">
+				<div
+					class="upload-card"
+					:class="{
+						'upload-card-disabled': readonly,
+						'upload-card-dragging': isDraggingFile,
+						'upload-card-has-file': !!modelValue?.name,
+					}"
+					@dragover="handleFileDragOver"
+					@dragleave="handleFileDragLeave"
+					@drop="handleFileDrop">
+					<input :id="inputId" ref="fileInputRef" type="file" accept=".pdf,application/pdf" :disabled="readonly" class="hidden-file-input" @change="handleFileSelect" />
+
+					<div class="upload-card-icon">
+						<i :class="modelValue?.name ? 'pi pi-file-pdf' : 'pi pi-cloud-upload'" />
+					</div>
+
+					<div class="upload-card-content">
+						<div class="upload-card-title">
+							{{ modelValue?.name ? 'PDF file selected' : 'Upload PDF file' }}
+						</div>
+
+						<div class="upload-card-subtitle">
+							{{ modelValue?.name ? 'You can replace this file by choosing another PDF or dragging one here.' : 'Drag and drop your PDF here or choose a file from your device.' }}
+						</div>
+
+						<div class="upload-rule-badges">
+							<Tag value="PDF only" severity="contrast" rounded />
+							<Tag :value="`Max ${maxFileSizeKb} KB`" severity="secondary" rounded />
+						</div>
+					</div>
+
+					<div class="upload-card-action">
+						<Button type="button" :label="modelValue?.name ? 'Replace File' : 'Choose File'" icon="pi pi-upload" severity="secondary" outlined :disabled="readonly" @click="openFilePicker" />
+					</div>
+				</div>
+
+				<div v-if="modelValue?.name" class="selected-file-card">
+					<div class="selected-file-left">
+						<div class="selected-file-icon">
+							<i class="pi pi-file-pdf" />
+						</div>
+
+						<div class="selected-file-meta">
+							<div class="selected-file-name">{{ modelValue.name }}</div>
+							<div class="selected-file-size">{{ (modelValue.size / 1024).toFixed(2) }} KB</div>
+						</div>
+					</div>
+
+					<div class="selected-file-actions">
+						<Button type="button" icon="pi pi-times" text rounded severity="danger" :disabled="readonly" @click="clearSelectedFile" />
+					</div>
+				</div>
+
+				<div class="file-upload-note">Please upload a PDF document only. Maximum allowed size is {{ maxFileSizeKb }} KB.</div>
 			</div>
 
-			<!-- Unsupported -->
 			<div v-else class="unsupported-field">Unsupported field type: {{ safeField.type }}</div>
 		</div>
 
-		<Message v-if="error" severity="error" size="small" variant="simple">
-			{{ error }}
+		<Message v-if="effectiveError" severity="error" size="small" variant="simple">
+			{{ effectiveError }}
 		</Message>
 	</div>
 </template>
@@ -496,7 +629,149 @@
 		min-width: 180px;
 	}
 
-	.file-placeholder,
+	.file-upload-wrapper {
+		display: flex;
+		flex-direction: column;
+		gap: 0.85rem;
+	}
+
+	.hidden-file-input {
+		display: none;
+	}
+
+	.upload-card {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: center;
+		gap: 1rem;
+		padding: 1rem 1.1rem;
+		border: 1px dashed var(--surface-border);
+		border-radius: 18px;
+		background: linear-gradient(180deg, var(--surface-card), var(--surface-50));
+		transition: all 0.2s ease;
+	}
+
+	.upload-card:hover {
+		border-color: var(--primary-color);
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+		transform: translateY(-1px);
+	}
+
+	.upload-card-dragging {
+		border-color: var(--primary-color);
+		background: linear-gradient(180deg, var(--surface-50), var(--surface-100));
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+	}
+
+	.upload-card-has-file {
+		border-style: solid;
+	}
+
+	.upload-card-disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
+	}
+
+	.upload-card-icon {
+		width: 52px;
+		height: 52px;
+		border-radius: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface-100);
+		color: var(--primary-color);
+		font-size: 1.4rem;
+	}
+
+	.upload-card-content {
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+		min-width: 0;
+	}
+
+	.upload-card-title {
+		font-weight: 700;
+		color: var(--text-color);
+	}
+
+	.upload-card-subtitle {
+		font-size: 0.875rem;
+		color: var(--text-color-secondary);
+		line-height: 1.4;
+	}
+
+	.upload-rule-badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.1rem;
+	}
+
+	.upload-card-action {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+	}
+
+	.selected-file-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.9rem 1rem;
+		border: 1px solid var(--surface-border);
+		border-radius: 16px;
+		background: var(--surface-50);
+	}
+
+	.selected-file-left {
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+		min-width: 0;
+	}
+
+	.selected-file-icon {
+		width: 44px;
+		height: 44px;
+		border-radius: 12px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: #fee2e2;
+		color: #dc2626;
+		font-size: 1.1rem;
+		flex-shrink: 0;
+	}
+
+	.selected-file-meta {
+		min-width: 0;
+	}
+
+	.selected-file-name {
+		font-weight: 600;
+		color: var(--text-color);
+		word-break: break-word;
+	}
+
+	.selected-file-size {
+		font-size: 0.825rem;
+		color: var(--text-color-secondary);
+		margin-top: 0.2rem;
+	}
+
+	.selected-file-actions {
+		flex-shrink: 0;
+	}
+
+	.file-upload-note {
+		font-size: 0.875rem;
+		color: var(--text-color-secondary);
+		padding-left: 0.15rem;
+	}
+
 	.unsupported-field {
 		min-height: 3rem;
 		display: flex;
@@ -507,5 +782,30 @@
 		border-radius: 12px;
 		color: var(--text-color-secondary);
 		background: var(--surface-50);
+	}
+
+	@media (max-width: 640px) {
+		.upload-card {
+			grid-template-columns: 1fr;
+			text-align: center;
+		}
+
+		.upload-card-icon {
+			margin: 0 auto;
+		}
+
+		.upload-card-action {
+			justify-content: center;
+		}
+
+		.selected-file-card {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.selected-file-actions {
+			display: flex;
+			justify-content: flex-end;
+		}
 	}
 </style>

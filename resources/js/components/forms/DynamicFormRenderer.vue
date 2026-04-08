@@ -154,6 +154,21 @@
 			}
 		}
 
+		if (field.type === 'file') {
+			if (!(value instanceof File)) {
+				return 'Please upload a PDF file.'
+			}
+
+			if (value.type !== 'application/pdf') {
+				return 'Only PDF files are allowed.'
+			}
+
+			const maxBytes = 2048 * 1024
+			if (value.size > maxBytes) {
+				return 'File size must not exceed 2048 KB.'
+			}
+		}
+
 		return ''
 	}
 
@@ -181,6 +196,40 @@
 		submittingState.loading = true
 
 		try {
+			const hasFileField = activeFields.value.some((field) => field.type === 'file')
+
+			if (hasFileField) {
+				const formData = new FormData()
+
+				formData.append('respondent_name', '')
+				formData.append('respondent_email', '')
+
+				const serializedAnswers = activeFields.value.map((field) => {
+					const value = answers[field.id]
+
+					if (field.type === 'file') {
+						if (value instanceof File) {
+							formData.append(`files[${field.id}]`, value)
+						}
+
+						return {
+							field_id: field.id,
+							value: null,
+						}
+					}
+
+					return {
+						field_id: field.id,
+						value,
+					}
+				})
+
+				formData.append('answers', JSON.stringify(serializedAnswers))
+
+				emit('submit', formData)
+				return
+			}
+
 			const payload = {
 				respondent_name: null,
 				respondent_email: null,

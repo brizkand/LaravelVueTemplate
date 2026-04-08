@@ -67,11 +67,9 @@
 
 	const localForm = ref(createDefaultForm())
 	const formError = ref('')
-	const allowedTypesText = ref('')
 
 	const resetForm = () => {
 		localForm.value = createDefaultForm()
-		allowedTypesText.value = ''
 		formError.value = ''
 	}
 
@@ -127,7 +125,6 @@
 			resetForm()
 		}
 
-		allowedTypesText.value = (localForm.value.validation_rules.allowed_types || []).join(', ')
 		formError.value = ''
 	}
 
@@ -156,13 +153,13 @@
 
 	const supportsMinMax = computed(() => ['number', 'rating'].includes(localForm.value.type))
 
-	const supportsFileRules = computed(() => localForm.value.type === 'file')
-
 	const supportsOtherOption = computed(() => ['radio', 'checkbox'].includes(localForm.value.type))
 
 	const isLinearScale = computed(() => localForm.value.type === 'linear_scale')
 
 	const isGridType = computed(() => ['multiple_choice_grid', 'checkbox_grid'].includes(localForm.value.type))
+
+	const isFileUpload = computed(() => localForm.value.type === 'file')
 
 	const addOption = () => {
 		localForm.value.options.push({
@@ -277,11 +274,6 @@
 	}
 
 	const normalizeValidationRules = () => {
-		const allowedTypes = allowedTypesText.value
-			.split(',')
-			.map((item) => item.trim().toLowerCase())
-			.filter(Boolean)
-
 		const rules = {
 			min: null,
 			max: null,
@@ -301,13 +293,9 @@
 					: null
 		}
 
-		if (supportsFileRules.value) {
-			rules.max_size_kb =
-				localForm.value.validation_rules.max_size_kb !== null && localForm.value.validation_rules.max_size_kb !== undefined && localForm.value.validation_rules.max_size_kb !== ''
-					? Number(localForm.value.validation_rules.max_size_kb)
-					: null
-
-			rules.allowed_types = allowedTypes
+		if (isFileUpload.value) {
+			rules.max_size_kb = 5096
+			rules.allowed_types = ['pdf']
 		}
 
 		return rules
@@ -435,8 +423,8 @@
 					? {
 							scale_start: null,
 							scale_end: null,
-							start_label: '',
-							end_label: '',
+							start_label: null,
+							end_label: null,
 							rows: localForm.value.field_settings.rows.map((row, index) => ({
 								label: row.label.trim(),
 								value: row.value.trim(),
@@ -500,9 +488,7 @@
 						<template #value="{value, placeholder}">
 							<div v-if="value" class="type-option">
 								<i :class="fieldTypes.find((item) => item.value === value)?.icon || 'pi pi-question-circle'" />
-								<span>
-									{{ fieldTypes.find((item) => item.value === value)?.label || value }}
-								</span>
+								<span>{{ fieldTypes.find((item) => item.value === value)?.label || value }}</span>
 							</div>
 							<span v-else>{{ placeholder }}</span>
 						</template>
@@ -551,12 +537,9 @@
 								<i class="pi pi-bars" />
 							</div>
 
-							<div class="option-index">
-								{{ index + 1 }}
-							</div>
+							<div class="option-index">{{ index + 1 }}</div>
 
 							<InputText v-model="element.label" class="w-full" placeholder="Option label" @blur="autoFillOptionValue(index)" />
-
 							<InputText v-model="element.value" class="w-full" placeholder="Option value" />
 
 							<Button type="button" icon="pi pi-trash" text rounded severity="danger" @click="removeOption(index)" />
@@ -631,12 +614,9 @@
 								<i class="pi pi-bars" />
 							</div>
 
-							<div class="option-index">
-								{{ index + 1 }}
-							</div>
+							<div class="option-index">{{ index + 1 }}</div>
 
 							<InputText v-model="element.label" class="w-full" placeholder="Row label" @blur="autoFillGridRowValue(index)" />
-
 							<InputText v-model="element.value" class="w-full" placeholder="Row value" />
 
 							<Button type="button" icon="pi pi-trash" text rounded severity="danger" @click="removeGridRow(index)" />
@@ -662,12 +642,9 @@
 								<i class="pi pi-bars" />
 							</div>
 
-							<div class="option-index">
-								{{ index + 1 }}
-							</div>
+							<div class="option-index">{{ index + 1 }}</div>
 
 							<InputText v-model="element.label" class="w-full" placeholder="Column label" @blur="autoFillGridColumnValue(index)" />
-
 							<InputText v-model="element.value" class="w-full" placeholder="Column value" />
 
 							<Button type="button" icon="pi pi-trash" text rounded severity="danger" @click="removeGridColumn(index)" />
@@ -676,7 +653,30 @@
 				</draggable>
 			</div>
 
-			<div v-if="supportsMinMax || supportsFileRules" class="section-block">
+			<div v-if="isFileUpload" class="section-block">
+				<Divider />
+
+				<div class="section-header">
+					<div>
+						<h3>File Upload Rules</h3>
+						<p>These rules are fixed by the system.</p>
+					</div>
+				</div>
+
+				<div class="fixed-file-rule-box">
+					<div class="fixed-file-rule-item">
+						<span class="fixed-file-rule-label">Allowed File Type</span>
+						<Tag value="PDF" severity="contrast" />
+					</div>
+
+					<div class="fixed-file-rule-item">
+						<span class="fixed-file-rule-label">Maximum File Size</span>
+						<Tag value="5096 KB" severity="secondary" />
+					</div>
+				</div>
+			</div>
+
+			<div v-if="supportsMinMax" class="section-block">
 				<Divider />
 
 				<div class="section-header">
@@ -687,30 +687,15 @@
 				</div>
 
 				<div class="editor-grid">
-					<template v-if="supportsMinMax">
-						<div class="field-block">
-							<label class="editor-label">Minimum</label>
-							<InputNumber v-model="localForm.validation_rules.min" class="w-full" inputClass="w-full" placeholder="Optional" />
-						</div>
+					<div class="field-block">
+						<label class="editor-label">Minimum</label>
+						<InputNumber v-model="localForm.validation_rules.min" class="w-full" inputClass="w-full" placeholder="Optional" />
+					</div>
 
-						<div class="field-block">
-							<label class="editor-label">Maximum</label>
-							<InputNumber v-model="localForm.validation_rules.max" class="w-full" inputClass="w-full" placeholder="Optional" />
-						</div>
-					</template>
-
-					<template v-if="supportsFileRules">
-						<div class="field-block">
-							<label class="editor-label">Max File Size (KB)</label>
-							<InputNumber v-model="localForm.validation_rules.max_size_kb" class="w-full" inputClass="w-full" placeholder="e.g. 2048" />
-						</div>
-
-						<div class="field-block field-block-full">
-							<label class="editor-label">Allowed File Types</label>
-							<InputText v-model="allowedTypesText" class="w-full" placeholder="Example: pdf, docx, jpg, png" />
-							<small class="helper-text">Separate file types with commas.</small>
-						</div>
-					</template>
+					<div class="field-block">
+						<label class="editor-label">Maximum</label>
+						<InputNumber v-model="localForm.validation_rules.max" class="w-full" inputClass="w-full" placeholder="Optional" />
+					</div>
 				</div>
 			</div>
 
@@ -882,11 +867,6 @@
 		color: var(--text-color-secondary);
 	}
 
-	.helper-text {
-		color: var(--text-color-secondary);
-		font-size: 0.8rem;
-	}
-
 	.dialog-footer {
 		display: flex;
 		align-items: center;
@@ -897,6 +877,28 @@
 
 	.mt-4 {
 		margin-top: 1rem;
+	}
+
+	.fixed-file-rule-box {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 1rem;
+		border: 1px solid var(--surface-border);
+		border-radius: 14px;
+		background: var(--surface-50);
+	}
+
+	.fixed-file-rule-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.fixed-file-rule-label {
+		font-weight: 600;
+		color: var(--text-color);
 	}
 
 	@media (max-width: 768px) {
