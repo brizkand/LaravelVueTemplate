@@ -14,11 +14,21 @@ class SubmitFormRequest extends FormRequest
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
+    protected function prepareForValidation(): void
+    {
+        $answers = $this->input('answers');
+
+        if (is_string($answers)) {
+            $decoded = json_decode($answers, true);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $this->merge([
+                    'answers' => $decoded,
+                ]);
+            }
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -28,6 +38,9 @@ class SubmitFormRequest extends FormRequest
             'answers' => ['required', 'array', 'min:1'],
             'answers.*.field_id' => ['required', 'integer', 'exists:form_fields,id'],
             'answers.*.value' => ['nullable'],
+
+            'files' => ['nullable', 'array'],
+            'files.*' => ['nullable', 'file', 'mimes:pdf', 'max:5096'],
         ];
     }
 }
